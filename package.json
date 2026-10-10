@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"tsx watch server/index.ts\" \"npm run dev --prefix payer-line-product-template -- --port 5173\"",
     "seed": "tsx scripts/seed.ts",
+    "verify-memory": "tsx scripts/verify-memory.ts",
     "build": "npm run build --prefix payer-line-product-template",
     "start": "tsx server/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit"

@@ -18,6 +18,11 @@ const DECISION_SCHEMA = {
   },
   required: ["decision", "confidence", "policy_conflict", "summary", "fixes", "do_not_add", "evidence"],
 };
+const HINDSIGHT_REQUEST_TIMEOUT_MS = 30_000;
+
+function requestSignal(): AbortSignal {
+  return AbortSignal.timeout(HINDSIGHT_REQUEST_TIMEOUT_MS);
+}
 
 const DIRECTIVES = [
   {
@@ -77,53 +82,88 @@ function bankMission(payerName: string): string {
 
 export async function provisionBanks(): Promise<void> {
   const api = hindsight();
-  for (const payer of PAYERS) {
+  for (const [index, payer] of PAYERS.entries()) {
     try {
       await api.createBank(payer.bankId, {
         name: payer.name,
         reflectMission: bankMission(payer.name),
+        signal: requestSignal(),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!/already exists|409|conflict/i.test(message)) throw error;
     }
-    await api.updateBankConfig(payer.bankId, {
-      reflectMission: bankMission(payer.name),
-      retainMission:
-        "Extract only the insurer, procedure, document-presence and document-quality facts, outcome, and reason. Never retain patient identities, personal identifiers, diagnosis details, hospital details, clinical notes, or document contents.",
-      retainExtractionMode: "verbose",
-      observationsMission:
-        "Observations are durable rules about what this insurer actually approves or rejects. Keep only procedure, document facts, outcome, and reason. Never include patient identities, personal identifiers, hospital details, clinical notes, or document contents. Revise a rule when a newer outcome contradicts it.",
-      dispositionSkepticism: 5,
-      dispositionLiteralism: 5,
-      dispositionEmpathy: 2,
-      enableObservations: true,
-    });
+    try {
+      await api.updateBankConfig(payer.bankId, {
+        reflectMission: bankMission(payer.name),
+        retainMission:
+          "Extract only the insurer, procedure, document-presence and document-quality facts, outcome, and reason. Never retain patient identities, personal identifiers, diagnosis details, hospital details, clinical notes, or document contents.",
+        retainExtractionMode: "verbose",
+        observationsMission:
+          "Observations are durable rules about what this insurer actually approves or rejects. Keep only procedure, document facts, outcome, and reason. Never include patient identities, personal identifiers, hospital details, clinical notes, or document contents. Revise a rule when a newer outcome contradicts it.",
+        dispositionSkepticism: 5,
+        dispositionLiteralism: 5,
+        dispositionEmpathy: 2,
+        enableObservations: true,
+        signal: requestSignal(),
+      });
 
-    const existing = await api.listDirectives(payer.bankId);
-    const names = new Set(existing.items.map((item) => item.name));
-    for (const directive of DIRECTIVES) {
-      if (!names.has(directive.name)) {
-        await api.createDirective(payer.bankId, directive.name, directive.content, { priority: 10 });
+      const existing = await api.listDirectives(payer.bankId, { signal: requestSignal() });
+      const names = new Set(existing.items.map((item) => item.name));
+      for (const directive of DIRECTIVES) {
+        if (!names.has(directive.name)) {
+          await api.createDirective(payer.bankId, directive.name, directive.content, {
+            priority: 10,
+            signal: requestSignal(),
+          });
+        }
       }
+    } catch (error) {
+      throw new Error(`Failed provisioning ${payer.name} (${payer.bankId}): ${errorMessage(error)}`, {
+        cause: error,
+      });
     }
+    console.log(`${payer.name}: bank ${index + 1}/${PAYERS.length} ready`);
   }
 }
 
 export async function retainHistory(): Promise<number> {
   const api = hindsight();
-  for (const item of HISTORY) {
+  const bankTotals = new Map(PAYERS.map((payer) => [payer.id, HISTORY.filter((item) => item.payerId === payer.id).length]));
+  const bankProgress = new Map(PAYERS.map((payer) => [payer.id, 0]));
+  for (const [index, item] of HISTORY.entries()) {
     const payer = payerById(item.payerId);
-    const response = await api.retain(payer.bankId, item.content, {
-      timestamp: item.timestamp,
-      context: item.context,
-      documentId: item.documentId,
-      tags: item.tags,
-      updateMode: "replace",
-    });
-    if (response.async && response.operation_id) {
-      await waitForOperation(payer.bankId, response.operation_id);
+    try {
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          const response = await api.retain(payer.bankId, item.content, {
+            timestamp: item.timestamp,
+            context: item.context,
+            documentId: item.documentId,
+            tags: item.tags,
+            updateMode: "replace",
+            signal: requestSignal(),
+          });
+          if (response.async && response.operation_id) {
+            await waitForOperation(payer.bankId, response.operation_id);
+          }
+          break;
+        } catch (error) {
+          if (attempt >= 3 || !isTimeoutError(error)) throw error;
+          console.warn(
+            `${payer.name}: request timed out retaining ${item.documentId}; retry ${attempt}/2 with replace`,
+          );
+        }
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed retaining bank ${payer.bankId} document ${item.documentId} (${index + 1}/${HISTORY.length}): ${errorMessage(error)}`,
+        { cause: error },
+      );
     }
+    const savedForBank = (bankProgress.get(payer.id) ?? 0) + 1;
+    bankProgress.set(payer.id, savedForBank);
+    console.log(`${payer.name}: ${savedForBank}/${bankTotals.get(payer.id)} saved (${item.documentId})`);
   }
   return HISTORY.length;
 }
@@ -141,6 +181,7 @@ export async function retainOutcome(input: {
     documentId: input.documentId,
     tags: input.tags,
     updateMode: "replace",
+    signal: requestSignal(),
   });
   if (response.async && response.operation_id) {
     await waitForOperation(payer.bankId, response.operation_id);
@@ -154,6 +195,7 @@ export async function recallCase(payerId: PayerId, query: string, procedure = ""
     maxTokens: 1800,
     tags: [procedureTag(procedure)],
     tagsMatch: "any",
+    signal: requestSignal(),
   });
   return result.results.map((item) => ({
     id: item.id,
@@ -181,6 +223,7 @@ export async function reflectCase(
     includeFacts: true,
     tags: [procedureTag(procedure)],
     tagsMatch: "any",
+    signal: requestSignal(),
   });
   const memories = result.based_on?.memories ?? [];
   return {
@@ -201,8 +244,8 @@ export async function loadLedger(payerId: PayerId): Promise<LedgerEntry[]> {
   const payer = payerById(payerId);
   const api = hindsight();
   const [observations, recent] = await Promise.all([
-    api.listMemories(payer.bankId, { type: "observation", limit: 8 }),
-    api.listMemories(payer.bankId, { limit: 20 }),
+    api.listMemories(payer.bankId, { type: "observation", limit: 8, signal: requestSignal() }),
+    api.listMemories(payer.bankId, { limit: 20, signal: requestSignal() }),
   ]);
   const seen = new Set<string>();
   const entries: LedgerEntry[] = [];
@@ -227,7 +270,22 @@ export async function loadRecentOutcomes(
   packageName = "",
   limit = 6,
 ): Promise<EvidenceItem[]> {
-  const entries = await loadLedger(payerId);
+  const payer = payerById(payerId);
+  const memories = await hindsight().listMemories(payer.bankId, {
+    limit: 100,
+    signal: requestSignal(),
+  });
+  const entries: LedgerEntry[] = memories.items.flatMap((item) =>
+    item.text
+      ? [{
+          id: item.id,
+          text: item.text,
+          type: item.fact_type ?? undefined,
+          occurred: item.date || undefined,
+          context: item.context,
+        }]
+      : [],
+  );
   const procedureNeedle = procedure.trim().toLowerCase();
   const packageNeedle = packageName.trim().toLowerCase();
   const matched = entries
@@ -289,7 +347,7 @@ async function waitForOperation(bankId: string, operationId: string): Promise<vo
   const { baseUrl, apiKey } = hindsightConfig();
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${baseUrl.replace(/\/$/, "")}/v1/default/banks/${bankId}/operations/${operationId}`,
       { headers: { Authorization: `Bearer ${apiKey}` } },
     );
@@ -304,6 +362,25 @@ async function waitForOperation(bankId: string, operationId: string): Promise<vo
     await new Promise((resolve) => setTimeout(resolve, 1500));
   }
   throw new Error(`Hindsight retain for ${bankId} did not finish in time.`);
+}
+
+async function fetchWithTimeout(input: string | URL | Request, init: RequestInit = {}): Promise<Response> {
+  const timeout = requestSignal();
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(input, { ...init, signal });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "TimeoutError" ||
+      error.name === "AbortError" ||
+      /timeout|timed out|aborted|fetch failed|network|socket/i.test(error.message))
+  );
 }
 
 export function explainHindsightError(error: unknown): { status: number; message: string } | null {
