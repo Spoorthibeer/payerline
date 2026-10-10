@@ -2,7 +2,7 @@
 
 PayerLine is a cashless pre-authorisation advisor for hospital billing desks. Its deployed UI is the Next.js app in `payer-line-product-template/`; Express API routes in that app use the synced code in `payer-line-product-template/desk/`.
 
-**Advice only. A person still sends the file.** The app does not diagnose or auto-submit an insurer request. Hospitals and insurers are fictional, and documents and patient identities are never stored in memory.
+**Advice only. A person still sends the file.** The app does not diagnose or auto-submit an insurer request. Hospitals and insurers are fictional. Documents and patient identities are never stored in memory.
 
 ## Fictional hospitals
 
@@ -42,6 +42,16 @@ The packet checklist covers:
 10. Package name / code matching the procedure
 11. MLC / FIR copy, shown only for accident cases
 
+## Patient and desk modes
+
+The header lets a visitor choose patient self-service or hospital billing staff mode, and select English, Hindi, or Telugu. Patient mode uses hospital, insurer, surgery, and document selections to show a plain-language checklist. It can print the checklist or share its document list on WhatsApp; no name or personal details are requested or saved.
+
+A six-digit patient token is optional. A patient may create one to let billing staff open the same anonymous selections in desk mode; checking and printing the patient checklist do not require a token. Tokens are held in process memory for up to 24 hours, contain no personal data, and are lost on server restart. A real deployment needs a database and a suitable shared store with expiry.
+
+Desk mode is PIN-protected. Set `DESK_PIN` in the environment; the demo fallback is `1234`. Desk staff can enter a patient token to load the selections, review the full case, and print the checklist in the patient's selected language.
+
+After staff mark a file as sent to the insurer, PayerLine displays the IRDAI one-hour decision countdown and deadline in IST. Recording an approval opens a mandatory review for requested and approved amounts, decision time, and whether a query was raised. An approval cannot be saved until those required fields are complete. Query and denial outcomes continue to require a reason. Approval review facts are saved to that insurer's memory bank without patient identifiers.
+
 ## How the advice works
 
 1. The desk selects a fictional hospital, procedure, insurer, and the documents in the packet.
@@ -79,6 +89,7 @@ HINDSIGHT_API_KEY=your_hindsight_key
 GROQ_API_KEY=your_groq_key
 GROQ_MODEL=openai/gpt-oss-120b
 PORT=8787
+DESK_PIN=1234
 ```
 
 Install both workspaces, seed the insurer memory banks, and run the app:
