@@ -1,9 +1,19 @@
 import dotenv from "dotenv";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 dotenv.config();
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
+loadUnsetEnvironmentValues();
+
+function loadUnsetEnvironmentValues(): void {
+  for (const file of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "../.env")]) {
+    if (!existsSync(/*turbopackIgnore: true*/ file)) continue;
+    const parsed = dotenv.parse(readFileSync(/*turbopackIgnore: true*/ file));
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!process.env[key]?.trim()) process.env[key] = value;
+    }
+  }
+}
 
 export class MissingConfigError extends Error {
   readonly status = 503;

@@ -7,8 +7,8 @@ loadUnsetEnvironmentValues();
 
 function loadUnsetEnvironmentValues(): void {
   for (const file of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "../.env")]) {
-    if (!existsSync(file)) continue;
-    const parsed = dotenv.parse(readFileSync(file));
+    if (!existsSync(/*turbopackIgnore: true*/ file)) continue;
+    const parsed = dotenv.parse(readFileSync(/*turbopackIgnore: true*/ file));
     for (const [key, value] of Object.entries(parsed)) {
       if (!process.env[key]?.trim()) process.env[key] = value;
     }

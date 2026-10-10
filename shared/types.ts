@@ -62,6 +62,16 @@ export interface AdmissionCase {
   clinicalNote: string;
 }
 
+export interface PatientTokenCase {
+  hospitalId: HospitalId;
+  payerId: PayerId;
+  procedure: string;
+  packageName: string;
+  packageCode: string;
+  accidentCase: boolean;
+  documents: DocumentChecklist;
+}
+
 export interface PacketFix {
   title: string;
   detail: string;

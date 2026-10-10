@@ -170,3 +170,39 @@
   }
   .reveal { opacity: 1; transform: none; }
 }
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .printable-checklist,
+  .printable-checklist * {
+    visibility: visible !important;
+  }
+  .printable-checklist {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    padding: 24px;
+    color: #111;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
+  .printable-checklist h1 {
+    margin-bottom: 16px;
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .printable-checklist h2 {
+    margin: 20px 0 8px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .printable-checklist ul {
+    list-style: none;
+    padding: 0;
+  }
+  .printable-checklist li {
+    margin: 8px 0;
+  }
+}

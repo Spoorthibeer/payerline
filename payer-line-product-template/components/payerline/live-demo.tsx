@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Check, CircleSlash, Loader2, ScanLine, Sparkles } from 'lucide-react'
-import type { AdmissionCase, DocumentChecklist, PayerId, ReviewResponse } from '@shared/types'
+import type { AdmissionCase, DocumentChecklist, PatientTokenCase, PayerId, ReviewResponse } from '@shared/types'
 import { DOCUMENT_LABELS } from '@shared/packet'
 import { HOSPITALS, PROCEDURES } from '@shared/catalog'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,7 @@ import {
 } from '@/lib/pending-approval-reviews'
 import { patient as demoPatient, payers } from './data'
 import { usePatient } from './patient-context'
+import { patientText, patientDocuments } from '@/lib/i18n'
 
 type Phase = 'idle' | 'scanning' | 'done' | 'error'
 
@@ -40,7 +41,7 @@ export function LiveDemo() {
   const [packageCode, setPackageCode] = useState<string>(PROCEDURES[0].packageCode)
   const [documents, setDocuments] = useState<DocumentChecklist>(initialDocuments)
   const [accidentCase, setAccidentCase] = useState(false)
-  const { patient } = usePatient()
+  const { patient, setPatient, language } = usePatient()
   const [phase, setPhase] = useState<Phase>('idle')
   const [review, setReview] = useState<ReviewResponse | null>(null)
   const [error, setError] = useState('')
@@ -59,7 +60,10 @@ export function LiveDemo() {
   const [approvalNote, setApprovalNote] = useState('')
   const [pendingCases, setPendingCases] = useState<PendingApprovalReview[]>([])
   const [activePendingId, setActivePendingId] = useState('')
+  const [patientToken, setPatientToken] = useState('')
+  const [tokenError, setTokenError] = useState('')
   const didAutoReview = useRef(false)
+  const text = patientText[language]
 
   const payer = payers.find((item) => item.id === payerId)!
   const procedureName = patient.procedure.trim()
@@ -117,8 +121,8 @@ export function LiveDemo() {
     clinicalNote: `${patient.name}, ${patient.age}, ${patient.gender}, ${patient.procedure}, ${payer.name}. Package name: ${packageName}.`,
   }
 
-  const run = async () => {
-    if (!patient.name.trim() || !patient.procedure.trim()) {
+  const run = async (caseToReview: AdmissionCase = admission) => {
+    if (!caseToReview.patientName.trim() || !caseToReview.procedure.trim()) {
       setPhase('error')
       setError('Enter the patient name and procedure in the patient file before reviewing.')
       return
@@ -130,7 +134,7 @@ export function LiveDemo() {
       const response = await fetch('/api/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(admission),
+        body: JSON.stringify(caseToReview),
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.error || 'The desk could not review this file.')
@@ -139,6 +143,55 @@ export function LiveDemo() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The review did not complete.')
       setPhase('error')
+    }
+  }
+
+  const openPatientToken = async () => {
+    setTokenError('')
+    try {
+      const response = await fetch(`/api/patient-token?token=${encodeURIComponent(patientToken)}`)
+      const body: unknown = await response.json()
+      if (!response.ok) {
+        const message = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+          ? body.error
+          : 'The patient token could not be opened.'
+        throw new Error(message)
+      }
+      const tokenCase = parsePatientTokenCase(body)
+      if (!tokenCase) throw new Error('The patient token contains an invalid case.')
+      const tokenAdmission: AdmissionCase = {
+        patientName: 'Patient',
+        age: 0,
+        gender: '',
+        mrn: '',
+        ward: '',
+        scheduledAt: '',
+        diagnosis: '',
+        clinicalNote: '',
+        ...tokenCase,
+      }
+      const selectedProcedure = PROCEDURES.find((item) => item.name === tokenCase.procedure) ?? PROCEDURES[0]
+      setPatient({
+        ...patient,
+        name: 'Patient',
+        age: 0,
+        gender: '',
+        mrn: '',
+        hospitalId: tokenCase.hospitalId,
+        diagnosis: '',
+        procedure: tokenCase.procedure,
+      })
+      setPayerId(tokenCase.payerId)
+      setPackageName(tokenCase.packageName)
+      setPackageCode(tokenCase.packageCode || selectedProcedure.packageCode)
+      setDocuments(tokenCase.documents)
+      setAccidentCase(tokenCase.accidentCase)
+      setSentAt('')
+      setPhase('idle')
+      setReview(null)
+      await run(tokenAdmission)
+    } catch (caught) {
+      setTokenError(caught instanceof Error ? caught.message : 'The patient token could not be opened.')
     }
   }
 
@@ -251,6 +304,7 @@ export function LiveDemo() {
     packageName.trim().toLowerCase() === patient.procedure.trim().toLowerCase()
 
   return (
+    <>
     <section id="demo" className="relative scroll-mt-16 overflow-hidden bg-ink py-24 text-ink-foreground md:py-32">
       <div aria-hidden="true" className="absolute inset-0 bg-grid-ink [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_75%)]" />
       <div className="relative mx-auto max-w-7xl px-4 md:px-8">
@@ -297,6 +351,29 @@ export function LiveDemo() {
               </div>
               <p className="mt-3 text-sm leading-relaxed text-ink-muted">{payer.posture}</p>
             </fieldset>
+
+            <div className="mt-5 rounded-xl border border-ink-border p-4">
+              <label htmlFor="patient-token" className="font-mono text-xs uppercase tracking-widest text-ink-muted">
+                {text.tokenLabel}
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  id="patient-token"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={patientToken}
+                  onChange={(event) => setPatientToken(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-ink-border bg-ink px-3 text-sm tracking-[0.25em]"
+                />
+                <button type="button" disabled={patientToken.length !== 6} onClick={() => void openPatientToken()} className="h-10 rounded-lg border border-ink-border px-3 text-sm disabled:opacity-50">
+                  Open patient token
+                </button>
+              </div>
+              {tokenError ? <p role="alert" className="mt-2 text-sm text-destructive">{tokenError}</p> : null}
+              <button type="button" onClick={() => window.print()} className="mt-3 rounded-lg border border-ink-border px-3 py-2 text-sm">
+                Print checklist in patient&apos;s language
+              </button>
+            </div>
 
             <div className="mt-6">
               <label htmlFor="package" className="font-mono text-xs uppercase tracking-widest text-ink-muted">
@@ -384,7 +461,7 @@ export function LiveDemo() {
 
             <button
               type="button"
-              onClick={run}
+              onClick={() => void run()}
               disabled={phase === 'scanning'}
               className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-success text-sm font-medium text-success-foreground transition-all hover:brightness-110 disabled:opacity-70"
             >
@@ -671,6 +748,31 @@ export function LiveDemo() {
         </div>
       </div>
     </section>
+    <div className="printable-checklist hidden">
+      <h1>{text.title}</h1>
+      <p>{patient.procedure} · {hospital.name}, {hospital.city}</p>
+      <ul>
+        {patientDocuments(language).map((label, index) => {
+          const present = [
+            documents.preAuthorizationForm,
+            documents.insurerCard,
+            documents.identityProof !== 'missing',
+            documents.policyCopy,
+            documents.admissionAdvice,
+            documents.investigationReports,
+            documents.fitnessCertificate,
+            documents.signedSurgicalConsent,
+            documents.itemisedEstimate,
+            packageAligned,
+            !accidentCase || documents.mlcFir,
+          ][index]
+          const applicable = index !== 10 || accidentCase
+          return applicable ? <li key={label}>{present ? '☑' : '☐'} {label}</li> : null
+        })}
+      </ul>
+      <p>{text.advice}</p>
+    </div>
+    </>
   )
 }
 
@@ -681,4 +783,34 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
       {label}
     </label>
   )
+}
+
+function parsePatientTokenCase(value: unknown): PatientTokenCase | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as Partial<PatientTokenCase>
+  const docs = candidate.documents
+  if (
+    typeof candidate.hospitalId !== 'string' ||
+    typeof candidate.payerId !== 'string' ||
+    typeof candidate.procedure !== 'string' ||
+    typeof candidate.packageName !== 'string' ||
+    typeof candidate.packageCode !== 'string' ||
+    typeof candidate.accidentCase !== 'boolean' ||
+    !docs ||
+    typeof docs.preAuthorizationForm !== 'boolean' ||
+    typeof docs.insurerCard !== 'boolean' ||
+    !['aadhaar', 'pan', 'voter-id', 'missing'].includes(docs.identityProof) ||
+    typeof docs.policyCopy !== 'boolean' ||
+    typeof docs.admissionAdvice !== 'boolean' ||
+    typeof docs.investigationReports !== 'boolean' ||
+    typeof docs.investigationReportsOnLetterheadAndDated !== 'boolean' ||
+    typeof docs.investigationReportsMatchDiagnosis !== 'boolean' ||
+    typeof docs.cbcAttached !== 'boolean' ||
+    typeof docs.fitnessCertificate !== 'boolean' ||
+    typeof docs.fitnessCertificateAgeDays !== 'number' ||
+    typeof docs.signedSurgicalConsent !== 'boolean' ||
+    typeof docs.itemisedEstimate !== 'boolean' ||
+    typeof docs.mlcFir !== 'boolean'
+  ) return null
+  return candidate as PatientTokenCase
 }
