@@ -228,7 +228,8 @@ export function PatientMode({ language }: { language: Language }) {
             <h2 className="text-xl font-semibold">{missing.length === 0 ? text.ready : text.missing(missing.length)}</h2>
             <p className="mt-3 text-sm text-muted-foreground">{missing.length === 0 ? text.noMissing : text.bring}</p>
             {missing.length > 0 ? <ul className="mt-2 list-inside list-disc space-y-1 text-sm">{missing.map((item) => <li key={item}>{item}</li>)}</ul> : null}
-            <button type="button" onClick={() => void createToken()} className="mt-5 rounded-xl border px-4 py-2.5 text-sm">{text.createToken}</button>
+            <p className="mt-5 text-sm text-muted-foreground">{text.tokenOptional}</p>
+            <button type="button" onClick={() => void createToken()} className="mt-3 rounded-xl border px-4 py-2.5 text-sm">{text.createToken}</button>
             {token ? <p className="mt-4 text-sm">{text.tokenReady}<span className="ml-2 rounded-md bg-success/10 px-2 py-1 font-mono text-xl font-semibold tracking-[0.25em] text-success">{token}</span><span className="mt-2 block text-xs text-muted-foreground">{text.tokenExpiry}</span></p> : null}
             {tokenError ? <p role="alert" className="mt-3 text-sm text-destructive">{tokenError}</p> : null}
           </div>

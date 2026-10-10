@@ -159,6 +159,7 @@ export function LiveDemo() {
       }
       const tokenCase = parsePatientTokenCase(body)
       if (!tokenCase) throw new Error('The patient token contains an invalid case.')
+      setPatientToken('')
       const tokenAdmission: AdmissionCase = {
         patientName: 'Patient',
         age: 0,
