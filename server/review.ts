@@ -19,10 +19,9 @@ export async function reviewAdmission(admission: AdmissionCase): Promise<ReviewR
     reviewedAt: new Date().toISOString(),
     recalled,
     outcomes,
-    decision: stabilizeDecision(
+    ...stabilizeDecision(
       normalizeDecision(reflection.structured, reflection.narrative, reflection.basedOn),
       checklist,
-      admission,
     ),
   };
 }
@@ -33,14 +32,14 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
   const documentId = `live-${payer.id}-${Date.now()}`;
   const content = [
     `On ${new Date().toISOString()} the cashless desk recorded a ${input.outcome} from ${payer.name}.`,
-    `Patient ${admission.patientName}, ${admission.procedure}, diagnosis ${admission.diagnosis}.`,
+    `Procedure: ${admission.procedure}.`,
     `Package name submitted: "${admission.packageName}".`,
     `Ultrasound attached: ${yesNo(admission.ultrasoundAttached)}. Ultrasound date on hospital letterhead: ${yesNo(admission.ultrasoundDateOnLetterhead)}.`,
     `Culture report attached: ${yesNo(admission.cultureReportAttached)}. Culture contradicted the diagnosis: ${yesNo(admission.cultureContradictsDiagnosis)}.`,
     `Fitness certificate attached: ${yesNo(admission.fitnessCertificateAttached)}. Fitness certificate age in days: ${admission.fitnessCertificateAgeDays}.`,
     `Signed surgical consent attached: ${yesNo(admission.consentAttached)}. Itemised estimate attached: ${yesNo(admission.itemisedEstimateAttached)}.`,
     `Photo identity attached: ${yesNo(admission.photoIdAttached)}. Policy e-card attached: ${yesNo(admission.policyCardAttached)}. CBC attached: ${yesNo(admission.cbcAttached)}.`,
-    `Desk reason: ${input.reason.trim()}`,
+    `Desk reason: ${sanitizeReason(input.reason, admission.patientName, admission.mrn)}`,
     `This outcome is evidence for the next ${payer.name} file of the same procedure.`,
   ].join("\n");
 
@@ -55,9 +54,7 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
 
 function caseQuery(admission: AdmissionCase, payerName: string): string {
   return [
-    `Today's cashless file at St. Brigid Memorial is for ${payerName}.`,
-    `Patient: ${admission.patientName}, age ${admission.age}, gender ${admission.gender || "not stated"}, MRN ${admission.mrn}.`,
-    `Diagnosis: ${admission.diagnosis}.`,
+    `Today's cashless file is for ${payerName}.`,
     `Procedure: ${admission.procedure}.`,
     `The correct package name is the procedure name: "${admission.procedure}".`,
     `Package name on the form: "${admission.packageName}".`,
@@ -85,20 +82,20 @@ function caseQuery(admission: AdmissionCase, payerName: string): string {
 function stabilizeDecision(
   decision: ReviewDecision,
   checklist: ReturnType<typeof assessPacket>,
-  _admission: AdmissionCase,
-): ReviewDecision {
+): Pick<ReviewResponse, "decision" | "memoryDecision" | "checklist"> {
   return {
-    ...decision,
-    decision: checklist.mustHold ? "hold" : "send",
-    policyConflict: checklist.policyConflict,
-    confidence: checklist.mustHold
-      ? decision.confidence === "thin"
-        ? "moderate"
-        : decision.confidence
-      : decision.confidence,
-    fixes: checklist.missingRequired,
-    doNotAdd: checklist.removeFromPacket,
-    summary: checklist.message,
+    decision: {
+      ...decision,
+      decision: checklist.mustHold ? "hold" : decision.decision,
+      policyConflict: decision.policyConflict || checklist.policyConflict,
+    },
+    memoryDecision: decision,
+    checklist: {
+      decision: checklist.mustHold ? "hold" : "send",
+      summary: checklist.message,
+      fixes: checklist.missingRequired,
+      doNotAdd: checklist.removeFromPacket,
+    },
   };
 }
 
@@ -135,4 +132,22 @@ function stringList(value: unknown): string[] {
 
 function yesNo(value: boolean): string {
   return value ? "yes" : "no";
+}
+
+function sanitizeReason(reason: string, patientName: string, mrn: string): string {
+  let sanitized = reason.trim();
+  for (const identifier of [patientName, mrn]) {
+    if (identifier.trim()) {
+      sanitized = sanitized.replace(new RegExp(escapeRegExp(identifier.trim()), "gi"), "[redacted]");
+    }
+  }
+  return sanitized
+    .replace(/\b(?:MRN|medical record(?: number)?|patient ID)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/gi, "[redacted]")
+    .replace(/\bAadhaar(?: number)?\s*[:#-]?\s*\d{12}\b/gi, "[redacted]")
+    .replace(/\b(?:phone|mobile|contact)\s*[:#-]?\s*\+?\d[\d -]{8,}\d\b/gi, "[redacted]")
+    .replace(/\b\d{8,}\b/g, "[redacted]");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

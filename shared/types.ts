@@ -64,10 +64,21 @@ export interface ReviewDecision {
   basedOn: EvidenceItem[];
 }
 
+export interface ChecklistDecision {
+  decision: "hold" | "send";
+  summary: string;
+  fixes: string[];
+  doNotAdd: string[];
+}
+
 export interface ReviewResponse {
   payer: Payer;
   bankId: string;
+  /** Effective decision; the checklist can only add a safety hold to memory's decision. */
   decision: ReviewDecision;
+  /** The unmodified decision returned by Hindsight. */
+  memoryDecision: ReviewDecision;
+  checklist: ChecklistDecision;
   recalled: EvidenceItem[];
   /** Recent stored outcomes for this procedure / matching package. */
   outcomes: EvidenceItem[];

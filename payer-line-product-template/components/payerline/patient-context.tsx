@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState } from 'react'
-import type { Gender } from './data'
+import { patient as demoPatient, type Gender } from './data'
 
 export type PatientFile = {
   name: string
@@ -14,15 +14,15 @@ export type PatientFile = {
   procedure: string
 }
 
-const emptyPatient: PatientFile = {
-  name: '',
-  age: 0,
-  gender: '',
-  mrn: '',
-  ward: '',
-  scheduledAt: '',
-  diagnosis: '',
-  procedure: '',
+const examplePatient: PatientFile = {
+  name: demoPatient.name,
+  age: demoPatient.age,
+  gender: demoPatient.gender,
+  mrn: demoPatient.mrn,
+  ward: demoPatient.ward,
+  scheduledAt: demoPatient.scheduledAt,
+  diagnosis: demoPatient.diagnosis,
+  procedure: demoPatient.procedure,
 }
 
 const PatientContext = createContext<{
@@ -31,7 +31,7 @@ const PatientContext = createContext<{
 } | null>(null)
 
 export function PatientProvider({ children }: { children: React.ReactNode }) {
-  const [patient, setPatient] = useState<PatientFile>(emptyPatient)
+  const [patient, setPatient] = useState<PatientFile>(examplePatient)
   return <PatientContext.Provider value={{ patient, setPatient }}>{children}</PatientContext.Provider>
 }
 

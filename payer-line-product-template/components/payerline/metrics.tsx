@@ -10,7 +10,7 @@ const metrics = [
 ]
 
 function CountUp({ to, decimals = 0, start }: { to: number; decimals?: number; start: boolean }) {
-  const [value, setValue] = useState(0)
+  const [value, setValue] = useState(to)
 
   useEffect(() => {
     if (!start) return

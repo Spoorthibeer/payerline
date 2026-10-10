@@ -136,7 +136,7 @@ export async function retainOutcome(input: {
   const payer = payerById(input.payerId);
   const response = await hindsight().retain(payer.bankId, input.content, {
     timestamp: new Date().toISOString(),
-    context: `live cashless outcome recorded at the St. Brigid desk for ${payer.name}`,
+    context: `live cashless outcome recorded for ${payer.name}`,
     documentId: input.documentId,
     tags: input.tags,
     updateMode: "replace",

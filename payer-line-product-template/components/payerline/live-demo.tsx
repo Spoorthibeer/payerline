@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, CircleSlash, Loader2, ScanLine, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { payers } from './data'
+import { patient as demoPatient, payers } from './data'
 import { usePatient } from './patient-context'
 
 type PayerId = (typeof payers)[number]['id']
@@ -21,6 +21,17 @@ type Review = {
     doNotAdd: string[]
     basedOn: Evidence[]
   }
+  memoryDecision: {
+    decision: 'hold' | 'send'
+    confidence: 'thin' | 'moderate' | 'strong'
+    summary: string
+  }
+  checklist: {
+    decision: 'hold' | 'send'
+    summary: string
+    fixes: string[]
+    doNotAdd: string[]
+  }
   recalled: Evidence[]
   outcomes?: Evidence[]
   bankId: string
@@ -28,7 +39,7 @@ type Review = {
 
 export function LiveDemo() {
   const [payerId, setPayerId] = useState<PayerId>('meridian')
-  const [packageName, setPackageName] = useState('management')
+  const [packageName, setPackageName] = useState(demoPatient.procedure)
   const [letterhead, setLetterhead] = useState(false)
   const [cultureAttached, setCultureAttached] = useState(true)
   const [cultureConflicts, setCultureConflicts] = useState(true)
@@ -47,6 +58,7 @@ export function LiveDemo() {
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
+  const didAutoReview = useRef(false)
 
   const payer = payers.find((item) => item.id === payerId)!
   const procedureName = patient.procedure.trim()
@@ -119,6 +131,12 @@ export function LiveDemo() {
       setPhase('error')
     }
   }
+
+  useEffect(() => {
+    if (didAutoReview.current) return
+    didAutoReview.current = true
+    void run()
+  }, [])
 
   const saveOutcome = async () => {
     if (!review || reason.trim().length < 8) return
@@ -325,6 +343,17 @@ export function LiveDemo() {
                       <p className="font-medium">{holding ? 'Hold — do not send this file.' : 'Send — packet is clear.'}</p>
                       <p className="text-ink-muted">{review.decision.summary}</p>
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl border border-ink-border px-4 py-3 text-sm">
+                    <p className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Checklist says · {review.checklist.decision}</p>
+                    <p className="mt-1 text-ink-muted">{review.checklist.summary}</p>
+                  </div>
+                  <div className="rounded-xl border border-ink-border px-4 py-3 text-sm">
+                    <p className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">Memory says · {review.memoryDecision.decision}</p>
+                    <p className="mt-1 text-ink-muted">{review.memoryDecision.summary}</p>
                   </div>
                 </div>
 
