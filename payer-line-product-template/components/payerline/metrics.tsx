@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 
 const metrics = [
   { value: 4, suffix: '', prefix: '', label: 'insurer banks, never mixed' },
-  { value: 64, suffix: '', prefix: '', label: 'seeded outcomes across all procedures' },
-  { value: 4, suffix: '', prefix: '', label: 'supported procedures' },
-  { value: 14, suffix: 'd', prefix: '', label: 'Suraksha fitness-certificate limit' },
+  { value: 21, suffix: '', prefix: '', label: 'seeded outcomes for this surgery' },
+  { value: 1, suffix: '', prefix: '', label: 'procedure: laparoscopic cholecystectomy' },
+  { value: 14, suffix: 'd', prefix: '', label: 'Northline fitness-note limit' },
 ]
 
 function CountUp({ to, decimals = 0, start }: { to: number; decimals?: number; start: boolean }) {
-  const [value, setValue] = useState(to)
+  const [value, setValue] = useState(0)
 
   useEffect(() => {
     if (!start) return
@@ -62,7 +62,7 @@ export function Metrics() {
           </div>
         ))}
       </dl>
-      <p className="mt-4 text-xs text-muted-foreground">Counts from the simulated Indian-case history. Advice still comes from live recall and reflect.</p>
+      <p className="mt-4 text-xs text-muted-foreground">Counts from the seeded cholecystectomy history. Advice still comes from live recall and reflect.</p>
     </section>
   )
 }

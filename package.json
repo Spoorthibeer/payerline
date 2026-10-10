@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"tsx watch server/index.ts\" \"npm run dev --prefix payer-line-product-template -- --port 5173\"",
     "seed": "tsx scripts/seed.ts",
-    "verify-memory": "tsx scripts/verify-memory.ts",
-    "build": "npm run build --prefix payer-line-product-template",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
     "start": "tsx server/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
@@ -15,14 +14,21 @@
     "@vectorize-io/hindsight-client": "^0.10.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "framer-motion": "^12.23.12",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.2",
     "concurrently": "^9.2.1",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
   }
 }

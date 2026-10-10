@@ -13,9 +13,9 @@ const instrument = Instrument_Serif({
 })
 
 export const metadata: Metadata = {
-  title: 'PayerLine — Indian cashless pre-authorisation desk',
+  title: 'PayerLine — Cashless desk for St. Brigid Memorial',
   description:
-    'PayerLine reviews cashless pre-authorisation files against fictional Indian insurers and their separate memories. Advice only; a person still sends the file.',
+    'PayerLine reviews a cashless file against Meridian, Northline, Harbour, or Sable memory. Written policy and past outcomes can disagree. The desk still sends the file.',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
   },

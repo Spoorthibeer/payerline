@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Logo } from './logo'
-import { usePatient } from './patient-context'
-import { languageNames, patientText, type Language } from '@/lib/i18n'
 
 function LiveClock() {
   const [time, setTime] = useState('--:--:--')
@@ -49,16 +47,13 @@ const links = [
 ]
 
 export function SiteHeader() {
-  const { mode, setMode, language, setLanguage } = usePatient()
-  const text = patientText[language]
-
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 md:px-8">
         <a href="#" className="flex items-center gap-2" aria-label="PayerLine home">
           <Logo />
         </a>
-        {mode === 'desk' ? <nav aria-label="Primary" className="hidden lg:block">
+        <nav aria-label="Primary" className="hidden lg:block">
           <ul className="flex items-center gap-8 text-sm text-muted-foreground">
             {links.map((link) => (
               <li key={link.href}>
@@ -68,33 +63,12 @@ export function SiteHeader() {
               </li>
             ))}
           </ul>
-        </nav> : null}
-        <div className="flex items-center gap-2">
-          {mode === 'desk' ? <LiveClock /> : null}
-          <select
-            aria-label="Mode"
-            value={mode}
-            onChange={(event) => setMode(event.target.value as 'patient' | 'desk')}
-            className="h-9 max-w-48 rounded-lg border bg-card px-2 text-xs"
-          >
-            <option value="patient">{text.patientMode}</option>
-            <option value="desk">{text.deskMode}</option>
-          </select>
-          <select
-            aria-label="Language"
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as Language)}
-            className="h-9 rounded-lg border bg-card px-2 text-xs"
-          >
-            {(Object.entries(languageNames) as [Language, string][]).map(([code, name]) => (
-              <option key={code} value={code}>{name}</option>
-            ))}
-          </select>
-          {mode === 'desk' ? (
-            <a href="#demo" className={cn(buttonVariants({ size: 'sm' }), 'hidden sm:inline-flex')}>
-              Review a file
-            </a>
-          ) : null}
+        </nav>
+        <div className="flex items-center gap-3">
+          <LiveClock />
+          <a href="#demo" className={cn(buttonVariants({ size: 'sm' }))}>
+            Review a file
+          </a>
         </div>
       </div>
     </header>

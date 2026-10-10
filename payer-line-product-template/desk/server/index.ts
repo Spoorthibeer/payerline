@@ -5,7 +5,7 @@ import type { AdmissionCase, OutcomeInput } from "@shared/types";
 import { credentialStatus, MissingConfigError } from "./env";
 import { explainHindsightError, loadLedger } from "./hindsight";
 import { extractAdmission } from "./groq";
-import { recordOutcome, reviewAdmission, validateOutcomeInput } from "./review";
+import { recordOutcome, reviewAdmission } from "./review";
 
 const app = express();
 app.use(cors());
@@ -46,9 +46,8 @@ app.post("/api/review", async (req, res) => {
 app.post("/api/outcome", async (req, res) => {
   try {
     const input = req.body as OutcomeInput;
-    const validationError = input ? validateOutcomeInput(input) : "An outcome needs the case and the insurer's result.";
-    if (validationError) {
-      res.status(400).json({ error: validationError });
+    if (!input?.payerId || !input.caseSnapshot || !input.outcome || !input.reason?.trim()) {
+      res.status(400).json({ error: "An outcome needs the case, the result, and the insurer's reason." });
       return;
     }
     const saved = await recordOutcome(input);
@@ -61,7 +60,7 @@ app.post("/api/outcome", async (req, res) => {
 
 app.get("/api/ledger", async (req, res) => {
   try {
-    const requested = typeof req.query.payer === "string" ? req.query.payer : "bharat-arogya";
+    const requested = typeof req.query.payer === "string" ? req.query.payer : "meridian";
     const payer = PAYERS.find((item) => item.id === requested) ?? PAYERS[0];
     const payerId = payer.id;
     const entries = await loadLedger(payerId);

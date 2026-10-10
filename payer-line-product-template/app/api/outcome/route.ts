@@ -1,6 +1,6 @@
 import type { OutcomeInput } from '@shared/types'
 import { loadLedger } from '@server/hindsight'
-import { recordOutcome, validateOutcomeInput } from '@server/review'
+import { recordOutcome } from '@server/review'
 import { jsonError } from '@/lib/desk-errors'
 
 export const runtime = 'nodejs'
@@ -8,10 +8,9 @@ export const runtime = 'nodejs'
 export async function POST(request: Request) {
   try {
     const input = (await request.json()) as OutcomeInput
-    const validationError = input ? validateOutcomeInput(input) : 'An outcome needs the case and the insurer result.'
-    if (validationError) {
+    if (!input?.payerId || !input.caseSnapshot || !input.outcome || !input.reason?.trim()) {
       return Response.json(
-        { error: validationError },
+        { error: "An outcome needs the case, the result, and the insurer's reason." },
         { status: 400 },
       )
     }

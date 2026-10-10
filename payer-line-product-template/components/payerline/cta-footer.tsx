@@ -15,12 +15,13 @@ export function CtaFooter() {
       <div className="relative mx-auto max-w-7xl overflow-hidden px-4 pb-12 pt-24 md:px-8 md:pt-32">
         <div aria-hidden="true" className="absolute inset-0 bg-grid-ink [mask-image:radial-gradient(ellipse_at_top,black_20%,transparent_70%)]" />
         <div className="relative mx-auto max-w-3xl text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-success">Fictional Indian hospitals</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-success">St. Brigid Memorial</p>
           <h2 className="mt-4 text-balance font-serif text-5xl leading-tight md:text-7xl">
             Hold the file the policy would send.
           </h2>
           <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-ink-muted">
-            Each fictional insurer has its own memory and document habits. Advice only; a person still sends the file.
+            Open Meridian first. The default packet should hold. Switch to Northline and the same surgery asks for
+            different papers. A person still sends the file.
           </p>
           <a
             href="#demo"
@@ -34,7 +35,6 @@ export function CtaFooter() {
         <div className="relative mt-24 flex flex-col items-start justify-between gap-6 border-t border-ink-border pt-8 text-sm text-ink-muted md:flex-row md:items-center">
           <Logo inverted />
           <p>Advice only. The cashless desk still sends the file.</p>
-          <p className="text-center text-xs">Hospital and insurer names are fictional. No real patient data is used.</p>
           <p className="font-mono text-xs">© 2026 PayerLine</p>
         </div>
       </div>

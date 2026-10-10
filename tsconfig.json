@@ -20,5 +20,5 @@
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["shared"]
+  "include": ["src", "shared"]
 }

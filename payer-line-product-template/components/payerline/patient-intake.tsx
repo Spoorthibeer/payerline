@@ -2,7 +2,6 @@
 
 import { patient as examplePatient, type Gender } from './data'
 import { usePatient, type PatientFile } from './patient-context'
-import { HOSPITALS, PROCEDURES } from '@shared/catalog'
 
 const genders: Gender[] = ['Female', 'Male', 'Other']
 
@@ -21,7 +20,7 @@ export function PatientIntake() {
           Enter today&apos;s admission details.
         </h2>
         <p className="mt-5 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-          Choose a fictional hospital and procedure, then update the demo admission details.
+          Change the name, age, or the rest of the file. The first page and the live check use what is entered here.
         </p>
       </div>
 
@@ -50,53 +49,12 @@ export function PatientIntake() {
           </select>
         </label>
         <Field label="MRN" value={patient.mrn} placeholder={examplePatient.mrn} onChange={(value) => update('mrn', value)} />
-        <SelectField
-          label="Hospital"
-          value={patient.hospitalId}
-          onChange={(value) => update('hospitalId', value as PatientFile['hospitalId'])}
-          options={HOSPITALS.map((hospital) => ({
-            value: hospital.id,
-            label: `${hospital.name} (${hospital.city})`,
-          }))}
-        />
         <Field label="Ward" value={patient.ward} placeholder={examplePatient.ward} onChange={(value) => update('ward', value)} />
         <Field label="Scheduled" value={patient.scheduledAt} placeholder={examplePatient.scheduledAt} onChange={(value) => update('scheduledAt', value)} />
         <Field label="Diagnosis" value={patient.diagnosis} placeholder={examplePatient.diagnosis} onChange={(value) => update('diagnosis', value)} />
-        <SelectField
-          label="Procedure"
-          value={patient.procedure}
-          onChange={(value) => update('procedure', value)}
-          options={PROCEDURES.map((procedure) => ({ value: procedure.name, label: procedure.name }))}
-        />
+        <Field label="Procedure" value={patient.procedure} placeholder={examplePatient.procedure} onChange={(value) => update('procedure', value)} />
       </form>
     </section>
-  )
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  options: { value: string; label: string }[]
-}) {
-  return (
-    <label className="block">
-      <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-12 w-full rounded-xl border bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
   )
 }
 

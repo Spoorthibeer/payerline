@@ -1,87 +1,147 @@
 # PayerLine
 
-PayerLine is a cashless pre-authorisation advisor for hospital billing desks. Its deployed UI is the Next.js app in `payer-line-product-template/`; Express API routes in that app use the synced code in `payer-line-product-template/desk/`.
+**Cashless pre-authorisation desk for St. Brigid Memorial Hospital.**
 
-**Advice only. A person still sends the file.** The app does not diagnose or auto-submit an insurer request. Hospitals and insurers are fictional. Documents and patient identities are never stored in memory.
+PayerLine helps the hospital desk decide whether to **hold** or **send** a cashless file *before* it goes to the insurer. The decision comes from what that insurer has actually done on past cases — not from the written policy alone.
 
-## Fictional hospitals
+Memory is the product. Each insurer has its own [Hindsight](https://hindsight.vectorize.io) bank. Banks never mix. The agent advises only. A person still sends the file. It does not diagnose, and it does not auto-submit.
 
-| Hospital | City |
-|---|---|
-| Sri Venkateswara Multispeciality Hospital | Hyderabad |
-| Kaveri Care Hospital | Bengaluru |
-| Sahyadri Lifeline Hospital | Pune |
-| Ganga Seva Medical Centre | Varanasi |
+---
 
-## Insurer memory banks
+## The problem
 
-Each insurer has its own Hindsight bank; information is never mixed between banks.
+Written cashless policy often looks complete. Real denials and queries turn on details the policy never states:
 
-| Bank | Insurer | Simulated document habits |
-|---|---|---|
-| `payerline-bharat-arogya` | Bharat Arogya Insurance | Dated reports on hospital letterhead; exact package name |
-| `payerline-suraksha-general` | Suraksha General Insurance | Matching laboratory reports; fitness certificate within 14 days |
-| `payerline-navjeevan-health-tpa` | Navjeevan Health TPA | Signed surgical consent; itemised estimate |
-| `payerline-jan-raksha` | Jan Raksha Yojana | Aadhaar/e-KYC, scheme e-card, matching package code, and CBC |
+- Meridian may deny a packet because the ultrasound date is only on the radiology printout, not on hospital letterhead, or because the package name says “management” instead of the real procedure.
+- Northline may ignore letterhead and accept “management,” then hold the same surgery for missing labs or a fitness note older than 14 days.
+- Harbour cares about a signed consent and an itemised estimate.
+- Sable cares about photo identity, the policy e-card, and a CBC.
 
-## Procedures and documents
+The senior billing head often carries that knowledge alone. When they are busy or off shift, the desk sends a “complete” file and learns the hard way.
 
-The desk supports laparoscopic cholecystectomy, cataract surgery, C-section delivery, and total knee replacement. Seed history provides four dated simulated approvals, queries, or denials for every insurer/procedure pair, with reasons and amounts in ₹.
+---
 
-The packet checklist covers:
+## What PayerLine does
 
-1. Signed Pre-Authorisation Request Form
-2. TPA ID card / insurer e-card (Jan Raksha scheme e-card)
-3. Aadhaar photo ID + e-KYC, or PAN / voter ID
-4. Policy copy with sum insured and room-rent limit
-5. Doctor's admission advice with provisional diagnosis
-6. Relevant investigation reports, dated on hospital letterhead
-7. Physician fitness certificate and age in days
-8. Signed surgical consent form
-9. Itemised cost estimate
-10. Package name / code matching the procedure
-11. MLC / FIR copy, shown only for accident cases
+1. The desk enters today’s patient and builds the packet (package name, letterhead, culture, fitness, consent, estimate, identity papers, CBC).
+2. One insurer bank is opened. The others stay closed.
+3. **Recall** pulls similar past outcomes for that insurer and this surgery.
+4. **Reflect** returns **hold** or **send**, with:
+   - a short summary
+   - concrete fixes
+   - documents to leave out
+   - cited memories
+   - a flag when written policy and past outcomes disagree (outcomes govern)
+5. When the insurer replies, the desk can **retain** that outcome into the same bank so the next file learns from it.
 
-## Patient and desk modes
+Default demo surgery: **laparoscopic cholecystectomy** for acute calculus cholecystitis.
 
-The header lets a visitor choose patient self-service or hospital billing staff mode, and select English, Hindi, or Telugu. Patient mode uses hospital, insurer, surgery, and document selections to show a plain-language checklist. It can print the checklist or share its document list on WhatsApp; no name or personal details are requested or saved.
+---
 
-A six-digit patient token is optional. A patient may create one to let billing staff open the same anonymous selections in desk mode; checking and printing the patient checklist do not require a token. Tokens are held in process memory for up to 24 hours, contain no personal data, and are lost on server restart. A real deployment needs a database and a suitable shared store with expiry.
+## Insurer banks
 
-Desk mode is PIN-protected. Set `DESK_PIN` in the environment; the demo fallback is `1234`. Desk staff can enter a patient token to load the selections, review the full case, and print the checklist in the patient's selected language.
+| Bank | Insurer | What memory actually cares about |
+|------|---------|----------------------------------|
+| `payerline-meridian` | Meridian Health Assurance | Letterhead date, exact package name, contradictory culture |
+| `payerline-northline` | Northline General Insurance | Labs / matching culture, fitness note ≤ 14 days |
+| `payerline-harbour` | Harbour Indemnity | Signed surgical consent, itemised estimate |
+| `payerline-sable` | Sable Mutual | Photo ID, policy e-card, CBC |
 
-After staff mark a file as sent to the insurer, PayerLine displays the IRDAI one-hour decision countdown and deadline in IST. Recording an approval opens a mandatory review for requested and approved amounts, decision time, and whether a query was raised. An approval cannot be saved until those required fields are complete. Query and denial outcomes continue to require a reason. Approval review facts are saved to that insurer's memory bank without patient identifiers.
+Same procedure. Opposite documents. Separate memory.
 
-## How the advice works
+---
 
-1. The desk selects a fictional hospital, procedure, insurer, and the documents in the packet.
-2. PayerLine recalls matching outcomes from that insurer's bank and asks Hindsight to reflect on the current facts.
-3. The result shows the memory decision and packet checklist separately. The checklist can add a safety hold; it cannot overwrite the memory's decision.
-4. When staff record an insurer outcome, the reason and document facts can be retained in that insurer's bank for future recall.
+## How Hindsight is used
 
-Memory stores only insurer, procedure, document facts, outcome, and reason. Documents and patient identities are never stored in memory.
+| Step | Role in PayerLine |
+|------|-------------------|
+| **Retain** | Stores written policy and dated approvals, queries, and denials in that insurer’s bank only |
+| **Recall** | Surfaces matching past cases for today’s packet |
+| **Reflect** | Decides hold / send with fixes, do-not-add, confidence, and citations |
+
+Groq can also parse a clinical note into structured admission fields (with tool-call retries). The live desk can set the packet with toggles and still review against memory.
+
+---
 
 ## Stack
 
-- **Live UI** — Next.js, `payer-line-product-template/`
-- **API** — Node, Express, TypeScript, `server/`
-- **Memory** — Hindsight Cloud (`@vectorize-io/hindsight-client`), one bank per insurer
+- **API** — Node, Express, TypeScript (`server/`), port `8787`
+- **UI** — Next.js product page (`payer-line-product-template/`), port `5173`
+- **Memory** — Hindsight Cloud (`@vectorize-io/hindsight-client`)
 - **Note parsing** — Groq chat completions with function calling
-- **Shared case data** — `shared/` (insurers, hospitals, procedures, packet rules, seeded history, types)
+- **Shared case data** — `shared/` (payers, history, types)
 
-The desk UI posts to `/api/review`; the API recalls and reflects against one insurer bank. `/api/outcome` records an insurer reply. The Next.js API routes import the matching server/shared copy under `payer-line-product-template/desk/`.
+---
 
-When changing root `server/` or `shared/`, run:
+## System architecture
 
-```bash
-node scripts/sync-desk.mjs
+The desk UI never talks to Hindsight directly. It posts patient + packet fields to Express; the server opens **one** insurer bank, recalls matching outcomes, reflects hold/send, and can retain a later insurer reply into that same bank.
+
+```mermaid
+flowchart LR
+  subgraph Desk["Cashless desk"]
+    UI["Next.js UI<br/>:5173"]
+  end
+
+  subgraph API["PayerLine API"]
+    Express["Express / TypeScript<br/>:8787"]
+    Review["POST /api/review<br/>recall + reflect"]
+    Extract["POST /api/extract<br/>optional note parse"]
+    Outcome["POST /api/outcome<br/>retain reply"]
+    Express --> Review
+    Express --> Extract
+    Express --> Outcome
+  end
+
+  subgraph Shared["shared/"]
+    Payers["payers · types"]
+    History["seeded history"]
+  end
+
+  subgraph Memory["Hindsight Cloud"]
+    M["payerline-meridian"]
+    N["payerline-northline"]
+    H["payerline-harbour"]
+    S["payerline-sable"]
+  end
+
+  Groq["Groq<br/>function calling"]
+
+  UI -->|"/api/* proxy"| Express
+  Review --> Memory
+  Outcome --> Memory
+  Extract --> Groq
+  Review -.-> Shared
+  History -.->|"npm run seed"| Memory
 ```
 
-Do not edit `payer-line-product-template/desk/` separately from its root source.
+**Request path for a live check**
+
+```mermaid
+sequenceDiagram
+  actor Desk as Desk clerk
+  participant UI as Next.js UI
+  participant API as Express API
+  participant HS as Hindsight bank
+  participant LLM as Reflect / Groq
+
+  Desk->>UI: Enter patient, pick one insurer, set packet
+  UI->>API: POST /api/review
+  API->>HS: Recall similar outcomes (that bank only)
+  HS-->>API: Cited memories
+  API->>LLM: Reflect hold or send
+  LLM-->>API: Decision, fixes, do-not-keep
+  API-->>UI: Advise-only result
+  Note over Desk,UI: Person still sends or holds the file
+```
+
+---
 
 ## Setup
 
-Copy `.env.example` to `.env` and set the service credentials:
+### 1. Keys
+
+Copy `.env.example` to `.env` and set:
 
 ```env
 HINDSIGHT_API_URL=https://api.hindsight.vectorize.io
@@ -89,35 +149,71 @@ HINDSIGHT_API_KEY=your_hindsight_key
 GROQ_API_KEY=your_groq_key
 GROQ_MODEL=openai/gpt-oss-120b
 PORT=8787
-DESK_PIN=1234
 ```
 
-Install both workspaces, seed the insurer memory banks, and run the app:
+Do not commit `.env`.
+
+### 2. Install
 
 ```bash
 npm install
 npm install --prefix payer-line-product-template
+```
+
+### 3. Seed memory
+
+```bash
 npm run seed
+```
+
+This provisions the four banks, writes directives, and retains the seeded cholecystectomy history (policy + past outcomes). Safe to re-run; documents use stable IDs with replace.
+
+### 4. Run
+
+```bash
 npm run dev
 ```
 
-The desk runs at [http://localhost:5173](http://localhost:5173); the API health check is [http://localhost:8787/api/health](http://localhost:8787/api/health).
+- Desk UI: [http://localhost:5173](http://localhost:5173)
+- API health: [http://localhost:8787/api/health](http://localhost:8787/api/health)
 
-Build and typecheck:
+---
 
-```bash
-npm run typecheck
-npm run build
-```
+## API surface
 
-`npm run build` builds the live Next.js app.
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/health` | Credentials and payer list |
+| `POST` | `/api/extract` | Groq note → structured fields |
+| `POST` | `/api/review` | Recall + reflect for one payer |
+| `POST` | `/api/outcome` | Retain a live insurer reply |
+| `GET` | `/api/ledger?payer=` | Recent memories for that bank |
+
+The Next app proxies `/api/*` to the Express server.
+
+---
 
 ## Project layout
 
 ```text
-shared/                         # Insurers, fictional hospitals, procedures, packet rules, types, history
+shared/                         # Payers, seeded history, shared types
 server/                         # Express API, Hindsight, Groq, review flow
-scripts/seed.ts                 # Provision banks + retain simulated history
-scripts/sync-desk.mjs           # Sync root server/shared into the live Next app
-payer-line-product-template/    # Deployed Next.js app and API routes
+scripts/seed.ts                 # Provision banks + retain history
+payer-line-product-template/    # Next.js desk UI
 ```
+
+---
+
+## What this is not
+
+- Not a diagnosis tool
+- Not an auto-submitter to insurer portals
+- Not one shared memory across all payers
+
+It is advice for the cashless desk: **hold or send**, grounded in insurer-specific outcomes.
+
+---
+
+## License
+
+Built for the Vectorize / Hindsight hackathon. Use and adapt for your own demo as needed.
