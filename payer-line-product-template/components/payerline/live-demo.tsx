@@ -1,58 +1,42 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, CircleSlash, Loader2, ScanLine, Sparkles } from 'lucide-react'
+import type { AdmissionCase, DocumentChecklist, PayerId, ReviewResponse } from '@shared/types'
+import { DOCUMENT_LABELS } from '@shared/packet'
+import { HOSPITALS, PROCEDURES } from '@shared/catalog'
 import { cn } from '@/lib/utils'
 import { patient as demoPatient, payers } from './data'
 import { usePatient } from './patient-context'
 
-type PayerId = (typeof payers)[number]['id']
 type Phase = 'idle' | 'scanning' | 'done' | 'error'
 
-type Evidence = { id: string; text: string; type?: string; occurred?: string }
-
-type Review = {
-  decision: {
-    decision: 'hold' | 'send'
-    confidence: 'thin' | 'moderate' | 'strong'
-    policyConflict: boolean
-    summary: string
-    fixes: string[]
-    doNotAdd: string[]
-    basedOn: Evidence[]
-  }
-  memoryDecision: {
-    decision: 'hold' | 'send'
-    confidence: 'thin' | 'moderate' | 'strong'
-    summary: string
-  }
-  checklist: {
-    decision: 'hold' | 'send'
-    summary: string
-    fixes: string[]
-    doNotAdd: string[]
-  }
-  recalled: Evidence[]
-  outcomes?: Evidence[]
-  bankId: string
+const initialDocuments: DocumentChecklist = {
+  preAuthorizationForm: true,
+  insurerCard: true,
+  identityProof: 'aadhaar',
+  policyCopy: true,
+  admissionAdvice: true,
+  investigationReports: true,
+  investigationReportsOnLetterheadAndDated: false,
+  investigationReportsMatchDiagnosis: true,
+  cbcAttached: true,
+  fitnessCertificate: true,
+  fitnessCertificateAgeDays: 5,
+  signedSurgicalConsent: true,
+  itemisedEstimate: true,
+  mlcFir: false,
 }
 
 export function LiveDemo() {
-  const [payerId, setPayerId] = useState<PayerId>('meridian')
-  const [packageName, setPackageName] = useState(demoPatient.procedure)
-  const [letterhead, setLetterhead] = useState(false)
-  const [cultureAttached, setCultureAttached] = useState(true)
-  const [cultureConflicts, setCultureConflicts] = useState(true)
-  const [fitnessAttached, setFitnessAttached] = useState(false)
-  const [fitnessAge, setFitnessAge] = useState(21)
-  const [consentAttached, setConsentAttached] = useState(false)
-  const [itemisedEstimate, setItemisedEstimate] = useState(false)
-  const [photoIdAttached, setPhotoIdAttached] = useState(false)
-  const [policyCardAttached, setPolicyCardAttached] = useState(false)
-  const [cbcAttached, setCbcAttached] = useState(false)
+  const [payerId, setPayerId] = useState<PayerId>('bharat-arogya')
+  const [packageName, setPackageName] = useState('management')
+  const [packageCode, setPackageCode] = useState<string>(PROCEDURES[0].packageCode)
+  const [documents, setDocuments] = useState<DocumentChecklist>(initialDocuments)
+  const [accidentCase, setAccidentCase] = useState(false)
   const { patient } = usePatient()
   const [phase, setPhase] = useState<Phase>('idle')
-  const [review, setReview] = useState<Review | null>(null)
+  const [review, setReview] = useState<ReviewResponse | null>(null)
   const [error, setError] = useState('')
   const [outcome, setOutcome] = useState<'approved' | 'queried' | 'denied'>('denied')
   const [reason, setReason] = useState('')
@@ -62,11 +46,8 @@ export function LiveDemo() {
 
   const payer = payers.find((item) => item.id === payerId)!
   const procedureName = patient.procedure.trim()
-  const packageOptions = useMemo(() => {
-    const options = ['management']
-    if (procedureName && procedureName.toLowerCase() !== 'management') options.push(procedureName)
-    return options
-  }, [procedureName])
+  const procedure = PROCEDURES.find((item) => item.name === procedureName) ?? PROCEDURES[0]
+  const hospital = HOSPITALS.find((item) => item.id === patient.hospitalId) ?? HOSPITALS[0]
 
   const reset = () => {
     setPhase('idle')
@@ -75,35 +56,31 @@ export function LiveDemo() {
     setSaved('')
   }
 
-  useEffect(() => {
-    if (!packageOptions.includes(packageName)) {
-      setPackageName('management')
-      reset()
-    }
-  }, [packageOptions, packageName])
+  const updateDocument = <K extends keyof DocumentChecklist>(key: K, value: DocumentChecklist[K]) => {
+    setDocuments((current) => ({ ...current, [key]: value }))
+    reset()
+  }
 
-  const admission = {
+  useEffect(() => {
+    setPackageCode(procedure.packageCode)
+    reset()
+  }, [procedure.packageCode])
+
+  const admission: AdmissionCase = {
     patientName: patient.name,
     age: patient.age,
     gender: patient.gender,
     mrn: patient.mrn,
     ward: patient.ward,
     scheduledAt: patient.scheduledAt,
+    hospitalId: patient.hospitalId,
     diagnosis: patient.diagnosis,
     procedure: patient.procedure,
     payerId,
     packageName,
-    ultrasoundAttached: true,
-    ultrasoundDateOnLetterhead: letterhead,
-    cultureReportAttached: cultureAttached,
-    cultureContradictsDiagnosis: cultureAttached && cultureConflicts,
-    fitnessCertificateAttached: fitnessAttached,
-    fitnessCertificateAgeDays: fitnessAttached ? fitnessAge : 0,
-    consentAttached,
-    itemisedEstimateAttached: itemisedEstimate,
-    photoIdAttached,
-    policyCardAttached,
-    cbcAttached,
+    packageCode,
+    accidentCase,
+    documents,
     clinicalNote: `${patient.name}, ${patient.age}, ${patient.gender}, ${patient.procedure}, ${payer.name}. Package name: ${packageName}.`,
   }
 
@@ -185,11 +162,10 @@ export function LiveDemo() {
         <div className="max-w-3xl">
           <p className="font-mono text-xs uppercase tracking-widest text-success">Try it · live memory check</p>
           <h2 className="mt-4 text-balance font-serif text-4xl leading-tight md:text-6xl">
-            Same surgery. Only one bank is opened.
+            One packet. One insurer&apos;s memory at a time.
           </h2>
           <p className="mt-5 max-w-2xl text-pretty text-lg text-ink-muted">
-            {patient.name || 'The patient'} is booked for {patient.procedure || 'this procedure'} at St. Brigid Memorial. The check uses that
-            insurer&apos;s Hindsight bank, not the written policy.
+            {patient.procedure} at {hospital.name}, {hospital.city}. Choose the insurer and record the documents in the packet.
           </p>
         </div>
 
@@ -229,53 +205,86 @@ export function LiveDemo() {
 
             <div className="mt-6">
               <label htmlFor="package" className="font-mono text-xs uppercase tracking-widest text-ink-muted">
-                Package name on the form
+                Package name / code matching the procedure
               </label>
-              <select
+              <input
                 id="package"
+                type="text"
                 value={packageName}
                 onChange={(event) => {
                   setPackageName(event.target.value)
                   reset()
                 }}
                 className="mt-3 w-full rounded-xl border border-ink-border bg-ink px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-success/60"
-              >
-                {packageOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                placeholder={procedure.name}
+              />
             </div>
+            {payerId === 'jan-raksha-yojana' ? (
+              <div className="mt-4">
+                <label htmlFor="package-code" className="font-mono text-xs uppercase tracking-widest text-ink-muted">
+                  Jan Raksha package code
+                </label>
+                <input
+                  id="package-code"
+                  type="text"
+                  value={packageCode}
+                  onChange={(event) => {
+                    setPackageCode(event.target.value)
+                    reset()
+                  }}
+                  className="mt-3 w-full rounded-xl border border-ink-border bg-ink px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-success/60"
+                />
+              </div>
+            ) : null}
 
             <fieldset className="mt-6">
               <legend className="font-mono text-xs uppercase tracking-widest text-ink-muted">What is in today&apos;s packet</legend>
               <div className="mt-3 grid gap-2">
-                <Toggle label="Ultrasound date is on hospital letterhead" checked={letterhead} onChange={(value) => { setLetterhead(value); reset() }} />
-                <Toggle label="Culture report is attached" checked={cultureAttached} onChange={(value) => { setCultureAttached(value); reset() }} />
-                <Toggle label="Culture report conflicts with the diagnosis" checked={cultureConflicts} onChange={(value) => { setCultureConflicts(value); reset() }} />
-                <Toggle label="Physician fitness certificate is attached" checked={fitnessAttached} onChange={(value) => { setFitnessAttached(value); reset() }} />
-                <Toggle label="Signed surgical consent is attached" checked={consentAttached} onChange={(value) => { setConsentAttached(value); reset() }} />
-                <Toggle label="Estimate is itemised" checked={itemisedEstimate} onChange={(value) => { setItemisedEstimate(value); reset() }} />
-                <Toggle label="Photo identity is attached" checked={photoIdAttached} onChange={(value) => { setPhotoIdAttached(value); reset() }} />
-                <Toggle label="Policy e-card is attached" checked={policyCardAttached} onChange={(value) => { setPolicyCardAttached(value); reset() }} />
-                <Toggle label="CBC report is attached" checked={cbcAttached} onChange={(value) => { setCbcAttached(value); reset() }} />
-              </div>
-              {fitnessAttached ? (
-                <label className="mt-3 flex items-center justify-between text-sm text-ink-muted">
-                  Fitness note age (days)
-                  <input
-                    type="number"
-                    min={0}
-                    value={fitnessAge}
-                    onChange={(event) => {
-                      setFitnessAge(Number(event.target.value))
-                      reset()
-                    }}
-                    className="w-20 rounded-lg border border-ink-border bg-ink px-3 py-2 text-ink-foreground"
-                  />
+                <Toggle label={DOCUMENT_LABELS.preAuthorizationForm} checked={documents.preAuthorizationForm} onChange={(value) => updateDocument('preAuthorizationForm', value)} />
+                <Toggle
+                  label={payerId === 'jan-raksha-yojana' ? 'Ayushman-style Jan Raksha e-card' : DOCUMENT_LABELS.insurerCard}
+                  checked={documents.insurerCard}
+                  onChange={(value) => updateDocument('insurerCard', value)}
+                />
+                <label className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm text-ink-foreground">
+                  <span>{DOCUMENT_LABELS.identityProof}</span>
+                  <select
+                    value={documents.identityProof}
+                    onChange={(event) => updateDocument('identityProof', event.target.value as DocumentChecklist['identityProof'])}
+                    className="rounded-lg border border-ink-border bg-ink px-3 py-2 text-ink-foreground"
+                  >
+                    <option value="aadhaar">Aadhaar + e-KYC</option>
+                    <option value="pan">PAN card</option>
+                    <option value="voter-id">Voter ID</option>
+                    <option value="missing">Not attached</option>
+                  </select>
                 </label>
-              ) : null}
+                <Toggle label={DOCUMENT_LABELS.policyCopy} checked={documents.policyCopy} onChange={(value) => updateDocument('policyCopy', value)} />
+                <Toggle label={DOCUMENT_LABELS.admissionAdvice} checked={documents.admissionAdvice} onChange={(value) => updateDocument('admissionAdvice', value)} />
+                <Toggle label={`${DOCUMENT_LABELS.investigationReports} (ultrasound / blood tests as relevant)`} checked={documents.investigationReports} onChange={(value) => updateDocument('investigationReports', value)} />
+                <Toggle label="Reports are dated on hospital letterhead" checked={documents.investigationReportsOnLetterheadAndDated} onChange={(value) => updateDocument('investigationReportsOnLetterheadAndDated', value)} />
+                <Toggle label="Laboratory reports match the diagnosis" checked={documents.investigationReportsMatchDiagnosis} onChange={(value) => updateDocument('investigationReportsMatchDiagnosis', value)} />
+                <Toggle label={DOCUMENT_LABELS.cbcAttached} checked={documents.cbcAttached} onChange={(value) => updateDocument('cbcAttached', value)} />
+                <Toggle label={DOCUMENT_LABELS.fitnessCertificate} checked={documents.fitnessCertificate} onChange={(value) => updateDocument('fitnessCertificate', value)} />
+                {documents.fitnessCertificate ? (
+                  <label className="flex items-center justify-between text-sm text-ink-muted">
+                    Physician fitness certificate age (days)
+                    <input
+                      type="number"
+                      min={0}
+                      value={documents.fitnessCertificateAgeDays}
+                      onChange={(event) => updateDocument('fitnessCertificateAgeDays', Number(event.target.value))}
+                      className="w-20 rounded-lg border border-ink-border bg-ink px-3 py-2 text-ink-foreground"
+                    />
+                  </label>
+                ) : null}
+                <Toggle label={DOCUMENT_LABELS.signedSurgicalConsent} checked={documents.signedSurgicalConsent} onChange={(value) => updateDocument('signedSurgicalConsent', value)} />
+                <Toggle label={DOCUMENT_LABELS.itemisedEstimate} checked={documents.itemisedEstimate} onChange={(value) => updateDocument('itemisedEstimate', value)} />
+                <Toggle label="Accident case" checked={accidentCase} onChange={(value) => { setAccidentCase(value); reset() }} />
+                {accidentCase ? (
+                  <Toggle label={DOCUMENT_LABELS.mlcFir} checked={documents.mlcFir} onChange={(value) => updateDocument('mlcFir', value)} />
+                ) : null}
+              </div>
             </fieldset>
 
             <button
@@ -294,7 +303,7 @@ export function LiveDemo() {
               <div>
                 <p className="text-sm font-medium">{patient.procedure || 'Procedure not entered'}</p>
                 <p className="font-mono text-xs text-ink-muted">
-                  {patient.name || 'Patient not entered'} · {payer.name}
+                  {hospital.name} · {hospital.city} · {payer.name}
                 </p>
               </div>
               {review && phase === 'done' ? (

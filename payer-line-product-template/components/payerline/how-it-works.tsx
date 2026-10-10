@@ -6,14 +6,14 @@ const steps = [
     icon: BookOpenCheck,
     n: '01',
     title: 'Retain each insurer separately',
-    body: 'Approvals, queries, and denials for this cholecystectomy are written into that insurer’s Hindsight bank. Meridian never sees Northline’s facts.',
+    body: 'Approvals, queries, and denials are written into that insurer’s Hindsight bank. Bharat Arogya never sees Suraksha General’s facts.',
     detail: ['One bank per insurer', 'Dated outcomes', 'Written policy kept beside them'],
   },
   {
     icon: FileSearch,
     n: '02',
     title: 'Recall only that bank',
-    body: 'Today’s packet is compared with what this insurer actually did: letterhead, package name, culture, labs, and the age of the fitness note.',
+    body: 'Today’s packet is compared with what this insurer actually did: admission papers, reports, consent, estimates, and package details.',
     detail: ['Same surgery', 'Opposite documents', 'Citations stay visible'],
   },
   {
@@ -36,7 +36,7 @@ export function HowItWorks() {
           </h2>
         </div>
         <p className="max-w-sm text-pretty text-muted-foreground">
-          One procedure at St. Brigid Memorial. Two insurers. The advice changes when the bank changes.
+          Four fictional hospitals, four insurers, and four surgery types. The advice changes when the insurer changes.
         </p>
       </Reveal>
 

@@ -2,9 +2,9 @@ import { Quote } from 'lucide-react'
 import { Reveal } from './reveal'
 
 const notes = [
-  { insurer: 'Meridian', text: 'Scan date on hospital letterhead. “Management” is not an acceptable package name.', uses: '6 cases' },
-  { insurer: 'Meridian', text: 'A culture that does not support the diagnosis is left out. It has caused a query.', uses: '2 Mar 2026' },
-  { insurer: 'Northline', text: 'Letterhead is ignored. CBC, a matching culture, and a fitness note under 14 days are not.', uses: '5 cases' },
+  { insurer: 'Bharat Arogya', text: 'Reports need dated hospital letterhead and the exact procedure package name.', uses: 'Simulated history' },
+  { insurer: 'Suraksha General', text: 'Lab reports must match the diagnosis and the fitness note be under 14 days.', uses: 'Simulated history' },
+  { insurer: 'Navjeevan TPA', text: 'Signed surgical consent and an itemised estimate matter.', uses: 'Simulated history' },
 ]
 
 export function KnowledgeSection() {
@@ -15,20 +15,20 @@ export function KnowledgeSection() {
           <div className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-ink text-ink-foreground">
             <div aria-hidden="true" className="absolute inset-0 bg-grid-ink opacity-70" />
             <div className="relative flex h-full flex-col p-7">
-              <p className="font-mono text-[11px] uppercase tracking-widest text-success">Two banks, one surgery</p>
+              <p className="font-mono text-[11px] uppercase tracking-widest text-success">Separate insurer memories</p>
               <h3 className="mt-3 font-serif text-3xl leading-tight">Laparoscopic cholecystectomy</h3>
-              <p className="mt-2 text-sm text-ink-muted">Mrs. Ananya Rao · MRN SB-44821 · St. Brigid Memorial</p>
+              <p className="mt-2 text-sm text-ink-muted">Fictional case · Hyderabad</p>
               <div className="mt-8 grid flex-1 content-start gap-4">
                 <article className="rounded-2xl border border-ink-border bg-white/[0.04] p-4">
-                  <p className="font-mono text-[11px] uppercase tracking-widest text-success">payerline-meridian</p>
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-success">payerline-bharat-arogya</p>
                   <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                    Written policy accepts the ultrasound and a reasonable package name. Outcomes deny a missing letterhead date and the word “management”.
+                    Letterhead dates and exact package name are important. The same package can be queried if its name does not match the surgery.
                   </p>
                 </article>
                 <article className="rounded-2xl border border-ink-border bg-white/[0.04] p-4">
-                  <p className="font-mono text-[11px] uppercase tracking-widest text-warning">payerline-northline</p>
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-warning">payerline-suraksha-general</p>
                   <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                    The same packet can omit letterhead and keep the package name “management”. It cannot omit labs or a fitness note older than 14 days.
+                    Matching laboratory reports and a fitness certificate dated within 14 days support approval.
                   </p>
                 </article>
               </div>
@@ -64,11 +64,10 @@ export function KnowledgeSection() {
           <figure className="mt-10 rounded-2xl border bg-card p-7">
             <Quote className="size-6 text-success" aria-hidden="true" />
             <blockquote className="mt-4 font-serif text-2xl leading-snug">
-              &ldquo;Meridian’s policy asks for an ultrasound. Their denials ask for the date on our letterhead, and
-              they will not accept a package called management.&rdquo;
+            &ldquo;A packet that looks complete can still be queried for one document fact. Keep the learning with the insurer that raised it.&rdquo;
             </blockquote>
             <figcaption className="mt-5 text-sm text-muted-foreground">
-              Cashless desk, St. Brigid Memorial · Meridian Health Assurance
+            Illustrative example · Bharat Arogya Insurance
             </figcaption>
           </figure>
         </Reveal>

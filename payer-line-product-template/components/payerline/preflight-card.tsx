@@ -8,22 +8,22 @@ import { usePatient } from './patient-context'
 type Step = { label: string; outcome: 'pass' | 'flag'; note?: string }
 
 const steps: Step[] = [
-  { label: 'Clinical note and package name are on the form', outcome: 'pass' },
-  { label: 'Written policy would accept this packet', outcome: 'pass' },
+  { label: 'Pre-Authorisation Request Form is signed', outcome: 'pass' },
+  { label: 'Admission advice and identity papers are attached', outcome: 'pass' },
   {
-    label: 'Package name does not match the procedure',
+    label: 'Report date and package name need correction',
     outcome: 'flag',
-    note: 'Some insurers deny “management”. The package must match the procedure entered on the file.',
+    note: 'Bharat Arogya requires dated reports on hospital letterhead and the exact procedure package name.',
   },
   {
-    label: 'Required papers differ by insurer bank',
+    label: 'Document requirements differ by insurer',
     outcome: 'flag',
-    note: 'Meridian, Northline, Harbour, and Sable each keep separate memory. Open only one bank.',
+    note: 'Suraksha General checks matching labs and a fresh fitness certificate; each insurer keeps separate memory.',
   },
   {
-    label: 'A conflicting report is still in the packet',
+    label: 'Scheme documents are ready when relevant',
     outcome: 'flag',
-    note: 'Past outcomes may ask you to leave that document out before send.',
+    note: 'Jan Raksha checks Aadhaar/e-KYC, its scheme e-card, the matching package code, and CBC.',
   },
 ]
 

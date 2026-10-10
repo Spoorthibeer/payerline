@@ -1,5 +1,6 @@
 import { HindsightClient, HindsightError } from "@vectorize-io/hindsight-client";
 import type { EvidenceItem, LedgerEntry, PayerId } from "@shared/types";
+import { PROCEDURES } from "@shared/catalog";
 import { HISTORY } from "@shared/history";
 import { payerById, PAYERS } from "@shared/payers";
 import { hindsightConfig } from "./env";
@@ -71,7 +72,7 @@ export function decisionSchema(): Record<string, unknown> {
 }
 
 function bankMission(payerName: string): string {
-  return `You are the cashless pre-authorisation memory for ${payerName} at St. Brigid Memorial Hospital. You stop files this insurer has rejected before. You speak in formal hospital English. You cite dates and outcomes. You never choose treatment.`;
+  return `You are the cashless pre-authorisation memory for ${payerName}. You stop files this insurer has rejected before. You cite dates, procedures, document facts, outcomes, and reasons. Never retain patient identities, personal details, or document contents. You never choose treatment.`;
 }
 
 export async function provisionBanks(): Promise<void> {
@@ -89,10 +90,10 @@ export async function provisionBanks(): Promise<void> {
     await api.updateBankConfig(payer.bankId, {
       reflectMission: bankMission(payer.name),
       retainMission:
-        "Extract cashless outcomes, denial and query reasons, document defects, package names, and the change that later won approval. Ignore bedside manner, greetings, and scheduling chatter.",
+        "Extract only the insurer, procedure, document-presence and document-quality facts, outcome, and reason. Never retain patient identities, personal identifiers, diagnosis details, hospital details, clinical notes, or document contents.",
       retainExtractionMode: "verbose",
       observationsMission:
-        "Observations are durable rules about what this insurer actually approves or rejects. Keep the document defect, the package name, and the outcome. Revise a rule when a newer outcome contradicts it. Leave out one-off patient details that do not change the next file.",
+        "Observations are durable rules about what this insurer actually approves or rejects. Keep only procedure, document facts, outcome, and reason. Never include patient identities, personal identifiers, hospital details, clinical notes, or document contents. Revise a rule when a newer outcome contradicts it.",
       dispositionSkepticism: 5,
       dispositionLiteralism: 5,
       dispositionEmpathy: 2,
@@ -244,13 +245,14 @@ export async function loadRecentOutcomes(
 }
 
 export function procedureTag(procedure: string): string {
-  const slug = procedure
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  if (!slug || slug.includes("cholecystectomy")) return "procedure:cholecystectomy";
-  return `procedure:${slug}`;
+  return (
+    PROCEDURES.find((item) => item.name.toLowerCase() === procedure.trim().toLowerCase())?.tag ??
+    `procedure:${procedure
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")}`
+  );
 }
 
 function matchesProcedureOutcome(

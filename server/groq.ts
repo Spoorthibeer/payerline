@@ -1,4 +1,5 @@
-import type { ExtractedFields, PayerId } from "@shared/types";
+import { HOSPITALS } from "@shared/catalog";
+import type { DocumentChecklist, ExtractedFields, HospitalId, IdentityProof, PayerId } from "@shared/types";
 import { groqConfig } from "./env";
 
 const TOOL = {
@@ -11,27 +12,51 @@ const TOOL = {
       properties: {
         diagnosis: { type: "string" },
         procedure: { type: "string" },
-        payerId: { type: "string", enum: ["meridian", "northline", "harbour", "sable"] },
+        hospitalId: { type: "string", enum: HOSPITALS.map((hospital) => hospital.id) },
+        payerId: {
+          type: "string",
+          enum: ["bharat-arogya", "suraksha-general", "navjeevan-health-tpa", "jan-raksha-yojana"],
+        },
         packageName: { type: "string" },
-        ultrasoundAttached: { type: "boolean" },
-        ultrasoundDateOnLetterhead: { type: "boolean" },
-        cultureReportAttached: { type: "boolean" },
-        cultureContradictsDiagnosis: { type: "boolean" },
-        fitnessCertificateAttached: { type: "boolean" },
-        fitnessCertificateAgeDays: { type: "number" },
+        packageCode: { type: "string" },
+        accidentCase: { type: "boolean" },
+        documents: {
+          type: "object",
+          properties: {
+            preAuthorizationForm: { type: "boolean" },
+            insurerCard: { type: "boolean" },
+            identityProof: { type: "string", enum: ["aadhaar", "pan", "voter-id", "missing"] },
+            policyCopy: { type: "boolean" },
+            admissionAdvice: { type: "boolean" },
+            investigationReports: { type: "boolean" },
+            investigationReportsOnLetterheadAndDated: { type: "boolean" },
+            investigationReportsMatchDiagnosis: { type: "boolean" },
+            cbcAttached: { type: "boolean" },
+            fitnessCertificate: { type: "boolean" },
+            fitnessCertificateAgeDays: { type: "number" },
+            signedSurgicalConsent: { type: "boolean" },
+            itemisedEstimate: { type: "boolean" },
+            mlcFir: { type: "boolean" },
+          },
+          required: [
+            "preAuthorizationForm",
+            "insurerCard",
+            "identityProof",
+            "policyCopy",
+            "admissionAdvice",
+            "investigationReports",
+            "investigationReportsOnLetterheadAndDated",
+            "investigationReportsMatchDiagnosis",
+            "cbcAttached",
+            "fitnessCertificate",
+            "fitnessCertificateAgeDays",
+            "signedSurgicalConsent",
+            "itemisedEstimate",
+            "mlcFir",
+          ],
+        },
       },
-      required: [
-        "diagnosis",
-        "procedure",
-        "payerId",
-        "packageName",
-        "ultrasoundAttached",
-        "ultrasoundDateOnLetterhead",
-        "cultureReportAttached",
-        "cultureContradictsDiagnosis",
-        "fitnessCertificateAttached",
-        "fitnessCertificateAgeDays",
-      ],
+      required: ["diagnosis", "procedure", "hospitalId", "payerId", "packageName", "packageCode", "accidentCase", "documents"],
     },
   },
 };
@@ -53,7 +78,7 @@ export async function extractAdmission(note: string): Promise<ExtractedFields> {
     {
       role: "system",
       content:
-        "You read cashless pre-authorisation notes for St. Brigid Memorial. Call extract_admission exactly once. Meridian Health Assurance is payerId meridian. Northline General Insurance is payerId northline. Harbour Indemnity is payerId harbour. Sable Mutual is payerId sable. If a document is not mentioned, mark it absent. Set cultureContradictsDiagnosis true when the culture report shows no growth, an unrelated finding, or any result that does not support the stated diagnosis.",
+        "Extract a cashless pre-authorisation file for one of these fictional hospitals, insurers, and procedures. Call extract_admission exactly once. Bharat Arogya Insurance is bharat-arogya and checks dated reports on hospital letterhead and the exact package name. Suraksha General Insurance is suraksha-general and checks matching labs and a fitness certificate no older than 14 days. Navjeevan Health TPA is navjeevan-health-tpa and checks signed consent and an itemised estimate. Jan Raksha Yojana is jan-raksha-yojana and checks Aadhaar/e-KYC, its scheme e-card, package code, and CBC. If a document is not mentioned, mark it absent. Set accidentCase only when the note says this is an accident case; MLC/FIR is applicable only then.",
     },
     { role: "user", content: note },
   ];
@@ -119,21 +144,57 @@ export async function extractAdmission(note: string): Promise<ExtractedFields> {
 }
 
 function normalizeExtract(parsed: Partial<ExtractedFields>): ExtractedFields {
-  const known: PayerId[] = ["meridian", "northline", "harbour", "sable"];
-  const payerId: PayerId = known.includes(parsed.payerId as PayerId) ? (parsed.payerId as PayerId) : "meridian";
+  const knownPayers: PayerId[] = [
+    "bharat-arogya",
+    "suraksha-general",
+    "navjeevan-health-tpa",
+    "jan-raksha-yojana",
+  ];
+  const payerId: PayerId = knownPayers.includes(parsed.payerId as PayerId)
+    ? (parsed.payerId as PayerId)
+    : "bharat-arogya";
+  const knownHospitals = HOSPITALS.map((hospital) => hospital.id);
+  const hospitalId: HospitalId = knownHospitals.includes(parsed.hospitalId as HospitalId)
+    ? (parsed.hospitalId as HospitalId)
+    : HOSPITALS[0].id;
+  const sourceDocuments = parsed.documents as Partial<DocumentChecklist> | undefined;
+  const identityProof: IdentityProof =
+    sourceDocuments?.identityProof === "aadhaar" ||
+    sourceDocuments?.identityProof === "pan" ||
+    sourceDocuments?.identityProof === "voter-id" ||
+    sourceDocuments?.identityProof === "missing"
+      ? sourceDocuments.identityProof
+      : "missing";
   return {
     diagnosis: text(parsed.diagnosis, "Acute calculus cholecystitis"),
     procedure: text(parsed.procedure, "Laparoscopic cholecystectomy"),
+    hospitalId,
     payerId,
-    packageName: text(parsed.packageName, "management"),
-    ultrasoundAttached: Boolean(parsed.ultrasoundAttached),
-    ultrasoundDateOnLetterhead: Boolean(parsed.ultrasoundDateOnLetterhead),
-    cultureReportAttached: Boolean(parsed.cultureReportAttached),
-    cultureContradictsDiagnosis: Boolean(parsed.cultureContradictsDiagnosis),
-    fitnessCertificateAttached: Boolean(parsed.fitnessCertificateAttached),
-    fitnessCertificateAgeDays: Number.isFinite(parsed.fitnessCertificateAgeDays)
-      ? Number(parsed.fitnessCertificateAgeDays)
-      : 0,
+    packageName: text(parsed.packageName, "Laparoscopic cholecystectomy"),
+    packageCode: text(parsed.packageCode, ""),
+    accidentCase: Boolean(parsed.accidentCase),
+    documents: {
+      preAuthorizationForm: Boolean(sourceDocuments?.preAuthorizationForm),
+      insurerCard: Boolean(sourceDocuments?.insurerCard),
+      identityProof,
+      policyCopy: Boolean(sourceDocuments?.policyCopy),
+      admissionAdvice: Boolean(sourceDocuments?.admissionAdvice),
+      investigationReports: Boolean(sourceDocuments?.investigationReports),
+      investigationReportsOnLetterheadAndDated: Boolean(
+        sourceDocuments?.investigationReportsOnLetterheadAndDated,
+      ),
+      investigationReportsMatchDiagnosis: Boolean(
+        sourceDocuments?.investigationReportsMatchDiagnosis,
+      ),
+      cbcAttached: Boolean(sourceDocuments?.cbcAttached),
+      fitnessCertificate: Boolean(sourceDocuments?.fitnessCertificate),
+      fitnessCertificateAgeDays: Number.isFinite(sourceDocuments?.fitnessCertificateAgeDays)
+        ? Number(sourceDocuments?.fitnessCertificateAgeDays)
+        : 0,
+      signedSurgicalConsent: Boolean(sourceDocuments?.signedSurgicalConsent),
+      itemisedEstimate: Boolean(sourceDocuments?.itemisedEstimate),
+      mlcFir: Boolean(sourceDocuments?.mlcFir),
+    },
   };
 }
 

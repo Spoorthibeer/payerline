@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState } from 'react'
+import type { HospitalId } from '@shared/types'
 import { patient as demoPatient, type Gender } from './data'
 
 export type PatientFile = {
@@ -10,6 +11,7 @@ export type PatientFile = {
   mrn: string
   ward: string
   scheduledAt: string
+  hospitalId: HospitalId
   diagnosis: string
   procedure: string
 }
@@ -21,6 +23,7 @@ const examplePatient: PatientFile = {
   mrn: demoPatient.mrn,
   ward: demoPatient.ward,
   scheduledAt: demoPatient.scheduledAt,
+  hospitalId: demoPatient.hospitalId,
   diagnosis: demoPatient.diagnosis,
   procedure: demoPatient.procedure,
 }

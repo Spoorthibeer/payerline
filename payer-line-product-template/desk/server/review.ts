@@ -33,14 +33,8 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
   const content = [
     `On ${new Date().toISOString()} the cashless desk recorded a ${input.outcome} from ${payer.name}.`,
     `Procedure: ${admission.procedure}.`,
-    `Package name submitted: "${admission.packageName}".`,
-    `Ultrasound attached: ${yesNo(admission.ultrasoundAttached)}. Ultrasound date on hospital letterhead: ${yesNo(admission.ultrasoundDateOnLetterhead)}.`,
-    `Culture report attached: ${yesNo(admission.cultureReportAttached)}. Culture contradicted the diagnosis: ${yesNo(admission.cultureContradictsDiagnosis)}.`,
-    `Fitness certificate attached: ${yesNo(admission.fitnessCertificateAttached)}. Fitness certificate age in days: ${admission.fitnessCertificateAgeDays}.`,
-    `Signed surgical consent attached: ${yesNo(admission.consentAttached)}. Itemised estimate attached: ${yesNo(admission.itemisedEstimateAttached)}.`,
-    `Photo identity attached: ${yesNo(admission.photoIdAttached)}. Policy e-card attached: ${yesNo(admission.policyCardAttached)}. CBC attached: ${yesNo(admission.cbcAttached)}.`,
+    ...documentFacts(admission),
     `Desk reason: ${sanitizeReason(input.reason, admission.patientName, admission.mrn)}`,
-    `This outcome is evidence for the next ${payer.name} file of the same procedure.`,
   ].join("\n");
 
   await retainOutcome({
@@ -54,29 +48,40 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
 
 function caseQuery(admission: AdmissionCase, payerName: string): string {
   return [
-    `Today's cashless file is for ${payerName}.`,
+    `Cashless file for insurer ${payerName}.`,
     `Procedure: ${admission.procedure}.`,
-    `The correct package name is the procedure name: "${admission.procedure}".`,
     `Package name on the form: "${admission.packageName}".`,
-    `Ultrasound attached: ${yesNo(admission.ultrasoundAttached)}.`,
-    `Ultrasound date printed on hospital letterhead: ${yesNo(admission.ultrasoundDateOnLetterhead)}.`,
-    `Culture report attached: ${yesNo(admission.cultureReportAttached)}.`,
-    `Culture report contradicts the diagnosis: ${yesNo(admission.cultureContradictsDiagnosis)}.`,
-    `Physician fitness certificate attached: ${yesNo(admission.fitnessCertificateAttached)}.`,
-    `Fitness certificate age in days: ${admission.fitnessCertificateAgeDays}.`,
-    `Signed surgical consent attached: ${yesNo(admission.consentAttached)}.`,
-    `Itemised estimate attached: ${yesNo(admission.itemisedEstimateAttached)}.`,
-    `Photo identity attached: ${yesNo(admission.photoIdAttached)}.`,
-    `Policy e-card attached: ${yesNo(admission.policyCardAttached)}.`,
-    `CBC report attached: ${yesNo(admission.cbcAttached)}.`,
+    `Package code on the form: "${admission.packageCode}".`,
+    ...documentFacts(admission),
     "Decide whether the desk should hold or send this file.",
     "Use only this insurer's history.",
     "If the written policy would allow the file but past outcomes would not, hold it and set policy_conflict true.",
-    "fixes and do_not_add must be short document names only, for example: Package name, Ultrasound on letterhead, Matching culture report, Conflicting culture report, Fitness certificate, Surgical consent, Itemised estimate, Lump-sum estimate, Unsigned consent, Photo identity, Policy e-card, CBC.",
+    "The package name or scheme package code must match the procedure where this insurer requires it.",
+    "fixes and do_not_add must be short document names only.",
     "Do not write long sentences in fixes or do_not_add.",
     "evidence lists the dated past outcomes you relied on.",
     "confidence is thin below two agreeing outcomes, moderate at two, and strong at three or more.",
   ].join("\n");
+}
+
+function documentFacts(admission: AdmissionCase): string[] {
+  const documents = admission.documents;
+  return [
+    `Pre-Authorisation Request Form signed: ${yesNo(documents.preAuthorizationForm)}.`,
+    `Insurer e-card attached: ${yesNo(documents.insurerCard)}.`,
+    `Identity proof type: ${documents.identityProof}.`,
+    `Policy copy attached: ${yesNo(documents.policyCopy)}.`,
+    `Doctor's admission advice attached: ${yesNo(documents.admissionAdvice)}.`,
+    `Investigation reports attached: ${yesNo(documents.investigationReports)}.`,
+    `Investigation reports have dated hospital letterhead: ${yesNo(documents.investigationReportsOnLetterheadAndDated)}.`,
+    `Laboratory reports match the diagnosis: ${yesNo(documents.investigationReportsMatchDiagnosis)}.`,
+    `CBC attached: ${yesNo(documents.cbcAttached)}.`,
+    `Physician fitness certificate attached: ${yesNo(documents.fitnessCertificate)}; age in days: ${documents.fitnessCertificateAgeDays}.`,
+    `Signed surgical consent attached: ${yesNo(documents.signedSurgicalConsent)}.`,
+    `Itemised estimate attached: ${yesNo(documents.itemisedEstimate)}.`,
+    `Accident case: ${yesNo(admission.accidentCase)}.`,
+    `MLC / FIR copy attached: ${yesNo(documents.mlcFir)}.`,
+  ];
 }
 
 function stabilizeDecision(
