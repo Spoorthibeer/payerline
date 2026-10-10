@@ -5,7 +5,7 @@ import type { AdmissionCase, OutcomeInput } from "@shared/types";
 import { credentialStatus, MissingConfigError } from "./env";
 import { explainHindsightError, loadLedger } from "./hindsight";
 import { extractAdmission } from "./groq";
-import { recordOutcome, reviewAdmission } from "./review";
+import { recordOutcome, reviewAdmission, validateOutcomeInput } from "./review";
 
 const app = express();
 app.use(cors());
@@ -46,8 +46,9 @@ app.post("/api/review", async (req, res) => {
 app.post("/api/outcome", async (req, res) => {
   try {
     const input = req.body as OutcomeInput;
-    if (!input?.payerId || !input.caseSnapshot || !input.outcome || !input.reason?.trim()) {
-      res.status(400).json({ error: "An outcome needs the case, the result, and the insurer's reason." });
+    const validationError = input ? validateOutcomeInput(input) : "An outcome needs the case and the insurer's result.";
+    if (validationError) {
+      res.status(400).json({ error: validationError });
       return;
     }
     const saved = await recordOutcome(input);

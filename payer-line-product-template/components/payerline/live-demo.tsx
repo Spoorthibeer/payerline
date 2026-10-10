@@ -6,6 +6,12 @@ import type { AdmissionCase, DocumentChecklist, PayerId, ReviewResponse } from '
 import { DOCUMENT_LABELS } from '@shared/packet'
 import { HOSPITALS, PROCEDURES } from '@shared/catalog'
 import { cn } from '@/lib/utils'
+import {
+  addPendingApprovalReview,
+  loadPendingApprovalReviews,
+  removePendingApprovalReview,
+  type PendingApprovalReview,
+} from '@/lib/pending-approval-reviews'
 import { patient as demoPatient, payers } from './data'
 import { usePatient } from './patient-context'
 
@@ -42,6 +48,17 @@ export function LiveDemo() {
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
+  const [sentAt, setSentAt] = useState('')
+  const [countdownNow, setCountdownNow] = useState(Date.now())
+  const [amountRequested, setAmountRequested] = useState('')
+  const [amountApproved, setAmountApproved] = useState('')
+  const [decisionMinutes, setDecisionMinutes] = useState('')
+  const [queryRaisedFirst, setQueryRaisedFirst] = useState('')
+  const [queriedDocument, setQueriedDocument] = useState('')
+  const [offChecklistDocument, setOffChecklistDocument] = useState('')
+  const [approvalNote, setApprovalNote] = useState('')
+  const [pendingCases, setPendingCases] = useState<PendingApprovalReview[]>([])
+  const [activePendingId, setActivePendingId] = useState('')
   const didAutoReview = useRef(false)
 
   const payer = payers.find((item) => item.id === payerId)!
@@ -62,6 +79,21 @@ export function LiveDemo() {
   }
 
   useEffect(() => {
+    const savedPendingCases = loadPendingApprovalReviews()
+    setPendingCases(savedPendingCases)
+    if (savedPendingCases[0]) {
+      setActivePendingId(savedPendingCases[0].id)
+      setOutcome('approved')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!sentAt) return
+    const interval = window.setInterval(() => setCountdownNow(Date.now()), 1000)
+    return () => window.clearInterval(interval)
+  }, [sentAt])
+
+  useEffect(() => {
     setPackageCode(procedure.packageCode)
     reset()
   }, [procedure.packageCode])
@@ -80,6 +112,7 @@ export function LiveDemo() {
     packageName,
     packageCode,
     accidentCase,
+    sentAt: sentAt || undefined,
     documents,
     clinicalNote: `${patient.name}, ${patient.age}, ${patient.gender}, ${patient.procedure}, ${payer.name}. Package name: ${packageName}.`,
   }
@@ -116,17 +149,29 @@ export function LiveDemo() {
   }, [])
 
   const saveOutcome = async () => {
-    if (!review || reason.trim().length < 8) return
+    if (!review || (outcome !== 'approved' && reason.trim().length < 8)) return
     setSaving(true)
     setError('')
     try {
+      const approvalReview = outcome === 'approved'
+        ? {
+            amountRequested: Number(amountRequested),
+            amountApproved: Number(amountApproved),
+            decisionMinutes: Number(decisionMinutes),
+            queryRaisedFirst: queryRaisedFirst === 'yes',
+            queriedDocument: queryRaisedFirst === 'yes' ? queriedDocument : undefined,
+            offChecklistDocument,
+            note: approvalNote,
+          }
+        : undefined
       const response = await fetch('/api/outcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           payerId,
           outcome,
-          reason,
+          reason: outcome === 'approved' ? undefined : reason,
+          approvalReview,
           caseSnapshot: { ...admission, clinicalNote: reason },
         }),
       })
@@ -134,12 +179,62 @@ export function LiveDemo() {
       if (!response.ok) throw new Error(body.error || 'The outcome was not stored.')
       setSaved(body.documentId)
       setReason('')
+      if (activePendingId && outcome === 'approved') {
+        setPendingCases(removePendingApprovalReview(activePendingId))
+        setActivePendingId('')
+      }
+      setAmountRequested('')
+      setAmountApproved('')
+      setDecisionMinutes('')
+      setQueryRaisedFirst('')
+      setQueriedDocument('')
+      setOffChecklistDocument('')
+      setApprovalNote('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The outcome was not stored.')
     } finally {
       setSaving(false)
     }
   }
+
+  const beginApprovalReview = () => {
+    setOutcome('approved')
+    const id = activePendingId || `${payerId}-${Date.now()}`
+    setActivePendingId(id)
+    setPendingCases(addPendingApprovalReview({
+      id,
+      procedure: patient.procedure,
+      payer: payer.name,
+      createdAt: new Date().toISOString(),
+    }))
+    setDecisionMinutes(sentAt ? String(Math.max(0, Math.round((Date.now() - Date.parse(sentAt)) / 60_000))) : '')
+  }
+
+  const selectOutcome = (kind: 'approved' | 'queried' | 'denied') => {
+    if (kind === 'approved') {
+      beginApprovalReview()
+      return
+    }
+    setOutcome(kind)
+  }
+
+  const irdaDeadline = sentAt ? new Date(Date.parse(sentAt) + 60 * 60 * 1000) : null
+  const remainingMs = irdaDeadline ? Math.max(0, irdaDeadline.getTime() - countdownNow) : 0
+  const remainingMinutes = Math.floor(remainingMs / 60_000)
+  const remainingSeconds = Math.floor((remainingMs % 60_000) / 1000)
+  const approvalReady =
+    amountRequested.trim() !== '' &&
+    Number.isFinite(Number(amountRequested)) &&
+    Number(amountRequested) > 0 &&
+    amountApproved.trim() !== '' &&
+    Number.isFinite(Number(amountApproved)) &&
+    Number(amountApproved) >= 0 &&
+    Number(amountApproved) <= Number(amountRequested) &&
+    decisionMinutes.trim() !== '' &&
+    Number.isFinite(Number(decisionMinutes)) &&
+    Number(decisionMinutes) >= 0 &&
+    !!queryRaisedFirst &&
+    (queryRaisedFirst !== 'yes' || !!queriedDocument.trim())
 
   const evidence = review
     ? (review.outcomes && review.outcomes.length > 0
@@ -311,6 +406,11 @@ export function LiveDemo() {
                   {holding ? 'Hold' : 'Send'} · {review.decision.confidence}
                 </span>
               ) : null}
+              {activePendingId && !saved ? (
+                <span className="rounded-full bg-warning/20 px-3 py-1 font-mono text-xs uppercase tracking-widest text-warning">
+                  Review pending
+                </span>
+              ) : null}
             </div>
 
             {phase === 'idle' && (
@@ -345,6 +445,33 @@ export function LiveDemo() {
 
             {phase === 'done' && review && (
               <div className="px-6 py-6">
+                <div className="mb-5 rounded-xl border border-ink-border px-4 py-3">
+                  {sentAt ? (
+                    <p className="text-sm">
+                      Insurer must decide within 1 hour (by{' '}
+                      <span className="font-mono">
+                        {irdaDeadline?.toLocaleTimeString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })} IST
+                      </span>
+                      ) · {String(remainingMinutes).padStart(2, '0')}:{String(remainingSeconds).padStart(2, '0')} remaining
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSentAt(new Date().toISOString())
+                        setCountdownNow(Date.now())
+                      }}
+                      className="rounded-lg border border-ink-border px-3 py-2 text-sm"
+                    >
+                      Mark sent to insurer
+                    </button>
+                  )}
+                </div>
                 <div className={cn('rounded-xl px-4 py-3 text-sm', holding ? 'bg-destructive/15' : 'bg-success/15')}>
                   <div className="flex items-start gap-3">
                     {holding ? <CircleSlash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" /> : <Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />}
@@ -445,22 +572,96 @@ export function LiveDemo() {
                   <h3 className="font-mono text-xs uppercase tracking-widest text-ink-muted">Record what the insurer did</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(['approved', 'queried', 'denied'] as const).map((kind) => (
-                      <button key={kind} type="button" onClick={() => setOutcome(kind)} className={cn('rounded-full border px-3 py-1 text-xs uppercase tracking-wider', outcome === kind ? 'border-success bg-success/15 text-success' : 'border-ink-border text-ink-muted')}>
+                      <button key={kind} type="button" disabled={!!activePendingId && kind !== 'approved'} onClick={() => selectOutcome(kind)} className={cn('rounded-full border px-3 py-1 text-xs uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-40', outcome === kind ? 'border-success bg-success/15 text-success' : 'border-ink-border text-ink-muted')}>
                         {kind}
                       </button>
                     ))}
                   </div>
-                  <textarea
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    rows={3}
-                    required
-                    placeholder="The insurer’s reason, in their words"
-                    className="mt-3 w-full rounded-xl border border-ink-border bg-ink px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-success/60"
-                  />
-                  <button type="submit" disabled={saving || reason.trim().length < 8} className="mt-3 inline-flex h-11 items-center justify-center rounded-xl border border-ink-border px-4 text-sm disabled:opacity-50">
-                    {saving ? 'Writing into memory…' : 'Write outcome into this bank'}
-                  </button>
+                  {outcome === 'approved' ? (
+                    <div className="mt-4 space-y-4 rounded-xl border border-ink-border p-4">
+                      <p className="text-sm font-medium">Approval review · required before the case can close</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block text-sm">
+                          Amount requested (₹)
+                          <input type="number" min="1" required value={amountRequested} onChange={(event) => setAmountRequested(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                        </label>
+                        <label className="block text-sm">
+                          Amount approved (₹)
+                          <input type="number" min="0" required value={amountApproved} onChange={(event) => setAmountApproved(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                        </label>
+                        <label className="block text-sm">
+                          Time to decide (minutes)
+                          <input type="number" min="0" required value={decisionMinutes} onChange={(event) => setDecisionMinutes(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                        </label>
+                        <label className="block text-sm">
+                          Did the insurer raise a query first?
+                          <select required value={queryRaisedFirst} onChange={(event) => setQueryRaisedFirst(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2">
+                            <option value="">Select yes or no</option>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                          </select>
+                        </label>
+                        {queryRaisedFirst === 'yes' ? (
+                          <label className="block text-sm sm:col-span-2">
+                            Which document did the insurer query?
+                            <input required value={queriedDocument} onChange={(event) => setQueriedDocument(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                          </label>
+                        ) : null}
+                        <label className="block text-sm sm:col-span-2">
+                          Any document requested that was not on the checklist? (optional)
+                          <input value={offChecklistDocument} onChange={(event) => setOffChecklistDocument(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                        </label>
+                        <label className="block text-sm sm:col-span-2">
+                          Note (optional)
+                          <textarea rows={2} value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} className="mt-1 w-full rounded-lg border border-ink-border bg-ink px-3 py-2" />
+                        </label>
+                      </div>
+                      {pendingCases.length > 0 ? (
+                        <div className="rounded-lg bg-warning/10 p-3 text-sm">
+                          <p className="font-medium">Pending approval reviews</p>
+                          <ul className="mt-2 space-y-1">
+                            {pendingCases.map((pending) => (
+                              <li key={pending.id}>{pending.procedure} · {pending.payer}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      rows={3}
+                      required
+                      placeholder="The insurer’s reason, in their words"
+                      className="mt-3 w-full rounded-xl border border-ink-border bg-ink px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-success/60"
+                    />
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="submit"
+                      disabled={saving || (outcome === 'approved' ? !approvalReady : reason.trim().length < 8)}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-ink-border px-4 text-sm disabled:opacity-50"
+                    >
+                      {saving ? 'Writing into memory…' : outcome === 'approved' ? 'Submit approval review and close case' : 'Write outcome into this bank'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pendingCases.length > 0}
+                      onClick={() => {
+                        reset()
+                        setOutcome('denied')
+                        setSentAt('')
+                      }}
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-ink-border px-4 text-sm disabled:opacity-50"
+                      title={pendingCases.length > 0 ? 'Complete pending approval reviews before starting a new case.' : undefined}
+                    >
+                      New case
+                    </button>
+                  </div>
+                  {pendingCases.length > 0 ? (
+                    <p className="mt-2 text-sm text-warning">New case is disabled because an approval review is pending.</p>
+                  ) : null}
                   {saved ? <p className="mt-3 text-sm text-success">Stored. Review the same file again to see the new advice.</p> : null}
                   {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
                 </form>

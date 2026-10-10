@@ -1,4 +1,5 @@
 import type { AdmissionCase, OutcomeInput, ReviewDecision, ReviewResponse } from "@shared/types";
+import { outcomeInputError } from "@shared/outcome-validation";
 import { assessPacket } from "@shared/packet";
 import { payerById } from "@shared/payers";
 import { recallCase, reflectCase, retainOutcome, loadRecentOutcomes, procedureTag } from "./hindsight";
@@ -27,6 +28,8 @@ export async function reviewAdmission(admission: AdmissionCase): Promise<ReviewR
 }
 
 export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: string }> {
+  const validationError = outcomeInputError(input);
+  if (validationError) throw new Error(validationError);
   const payer = payerById(input.payerId);
   const admission = input.caseSnapshot;
   const documentId = `live-${payer.id}-${Date.now()}`;
@@ -34,7 +37,9 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
     `On ${new Date().toISOString()} the cashless desk recorded a ${input.outcome} from ${payer.name}.`,
     `Procedure: ${admission.procedure}.`,
     ...documentFacts(admission),
-    `Desk reason: ${sanitizeReason(input.reason, admission.patientName, admission.mrn)}`,
+    input.outcome === "approved"
+      ? approvalReviewMemory(input, admission.patientName, admission.mrn)
+      : `Insurer reason: ${sanitizeReason(input.reason ?? "", admission.patientName, admission.mrn)}`,
   ].join("\n");
 
   await retainOutcome({
@@ -44,6 +49,40 @@ export async function recordOutcome(input: OutcomeInput): Promise<{ documentId: 
     tags: [procedureTag(admission.procedure), `outcome:${input.outcome}`, "source:live"],
   });
   return { documentId };
+}
+
+export function validateOutcomeInput(input: OutcomeInput): string | null {
+  if (!input?.payerId || !input.caseSnapshot || !input.outcome) {
+    return "An outcome needs the case and the insurer's result.";
+  }
+  return outcomeInputError(input);
+}
+
+function approvalReviewMemory(
+  input: OutcomeInput,
+  patientName: string,
+  mrn: string,
+): string {
+  const review = input.approvalReview!;
+  const parts = [
+    `Approved ₹${formatRupees(review.amountApproved)} of ₹${formatRupees(review.amountRequested)} in ${review.decisionMinutes} minutes.`,
+    review.queryRaisedFirst
+      ? `A query was raised first about ${review.queriedDocument}.`
+      : "No query was raised first.",
+  ];
+  if (review.offChecklistDocument?.trim()) {
+    parts.push(
+      `The insurer asked for an off-checklist document: ${sanitizeReason(review.offChecklistDocument, patientName, mrn)}.`,
+    );
+  }
+  if (review.note?.trim()) {
+    parts.push(`Review note: ${sanitizeReason(review.note, patientName, mrn)}.`);
+  }
+  return parts.join(" ");
+}
+
+function formatRupees(value: number): string {
+  return Math.round(value).toLocaleString("en-IN");
 }
 
 function caseQuery(admission: AdmissionCase, payerName: string): string {

@@ -57,6 +57,7 @@ export interface AdmissionCase {
   packageName: string;
   packageCode: string;
   accidentCase: boolean;
+  sentAt?: string;
   documents: DocumentChecklist;
   clinicalNote: string;
 }
@@ -111,7 +112,18 @@ export interface OutcomeInput {
   payerId: PayerId;
   caseSnapshot: AdmissionCase;
   outcome: OutcomeKind;
-  reason: string;
+  reason?: string;
+  approvalReview?: ApprovalReview;
+}
+
+export interface ApprovalReview {
+  amountRequested: number;
+  amountApproved: number;
+  decisionMinutes: number;
+  queryRaisedFirst: boolean;
+  queriedDocument?: string;
+  offChecklistDocument?: string;
+  note?: string;
 }
 
 export interface LedgerEntry {
